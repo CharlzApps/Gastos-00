@@ -642,7 +642,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.51';
+const APP_VERSION = 'v1.52';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8067,16 +8067,26 @@ window.dbxForceDownload=async function(){
       method:'POST',
       headers:{'Authorization':'Bearer '+token,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
     });
-    if(!dlRes.ok) throw new Error('Error descargando: '+dlRes.status);
-    var remote=await dlRes.json();
+    if(!dlRes.ok) {
+      var errTxt=''; try{ errTxt=await dlRes.text(); }catch(e){}
+      throw new Error('HTTP '+dlRes.status+': '+errTxt.slice(0,200));
+    }
+    var rawText=await dlRes.text();
+    var remote;
+    try { remote=JSON.parse(rawText); } catch(e){ throw new Error('JSON inválido. Tamaño: '+rawText.length+' chars. Inicio: '+rawText.slice(0,100)); }
     if(!remote || typeof remote !== 'object') throw new Error('Datos inválidos en Dropbox');
+    var txCount=(remote.txs||[]).length;
+    var accCount=(remote.accounts||[]).length;
+    alert('DEBUG — Tamaño: '+rawText.length+' chars\nMovimientos: '+txCount+'\nCuentas: '+accCount+'\nClaves: '+Object.keys(remote).join(', '));
+    if(txCount===0 && accCount===0){ showToast('Dropbox tiene 0 datos — no se aplicó'); return; }
     state=remote;
     saveState();
     _dbxSet('lastSync', Date.now());
-    showToast('Descarga completa — '+(remote.txs||[]).length+' movimientos');
+    showToast('Descarga completa — '+txCount+' movimientos');
     setTimeout(function(){ window.location.reload(); }, 1000);
   } catch(e){
     showToast('Error: '+e.message);
+    alert('Error detalle: '+e.message);
   } finally {
     if(icon) icon.style.animation='';
   }
