@@ -116,16 +116,16 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .form-row { display: grid; gap: 8px; margin-bottom: 8px; }
 .form-row.cols2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
 .form-row.cols3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
-.field input, .field select, .field textarea { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 14px; font-family: var(--font); color: var(--text); outline: none; width: 100%; transition: border-color 0.15s; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+.field input, .field select, .field textarea { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 13px; font-size: 15px; font-family: var(--font); color: var(--text); outline: none; width: 100%; transition: border-color 0.15s; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
-.field textarea { resize: none; height: 52px; line-height: 1.4; }
+.field textarea { resize: none; height: 58px; line-height: 1.4; }
 .field select option { background: var(--bg3); }
 
 /* TYPE TOGGLE */
 .type-toggle { display: flex; background: var(--bg3); border-radius: var(--radius-sm); padding: 3px; gap: 3px; margin-bottom: 8px; }
-.type-btn { flex: 1; padding: 7px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); color: var(--text2); background: transparent; transition: all 0.15s; }
+.type-btn { flex: 1; padding: 9px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font); color: var(--text2); background: transparent; transition: all 0.15s; }
 .type-btn.active-expense { background: var(--bg4); color: var(--red); }
 .type-btn.active-income { background: var(--bg4); color: var(--green); }
 .type-btn.active-transfer { background: var(--bg4); color: var(--blue); }
@@ -642,7 +642,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.53';
+const APP_VERSION = 'v1.56';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1527,20 +1527,20 @@ function renderModal(isEdit) {
     <div class="modal-handle"></div>
 
     <!-- HEADER ROW -->
-    <div style="display:flex;align-items:center;padding:2px 12px 12px 20px">
-      <span style="font-size:15px;font-weight:600;flex:1">${isEdit?'Editar movimiento':'Nuevo movimiento'}</span>
+    <div style="display:flex;align-items:center;padding:4px 10px 14px 20px">
+      <span style="font-size:18px;font-weight:600;flex:1">${isEdit?'Editar movimiento':'Nuevo movimiento'}</span>
       <div style="display:flex;align-items:center;gap:2px">
         <!-- Save -->
-        <button onclick="saveTx()" title="Guardar" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='rgba(26,122,74,0.1)'" onmouseout="this.style.background='none'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <button onclick="saveTx()" title="Guardar" style="width:46px;height:46px;border:none;background:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='rgba(26,122,74,0.1)'" onmouseout="this.style.background='none'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="24" height="24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         </button>
         <!-- Delete (edit only) -->
-        ${isEdit?`<button onclick="deleteTx('${editingTxId}')" title="Eliminar" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--red);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='rgba(224,48,48,0.08)'" onmouseout="this.style.background='none'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="19" height="19"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        ${isEdit?`<button onclick="deleteTx('${editingTxId}')" title="Eliminar" style="width:46px;height:46px;border:none;background:none;cursor:pointer;color:var(--red);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='rgba(224,48,48,0.08)'" onmouseout="this.style.background='none'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="23" height="23"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
         </button>`:''}
         <!-- Close -->
-        <button onclick="closeModal()" title="Cerrar" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="19" height="19"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button onclick="closeModal()" title="Cerrar" style="width:46px;height:46px;border:none;background:none;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;border-radius:50%;transition:background 0.15s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='none'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="23" height="23"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
     </div>
@@ -2362,11 +2362,33 @@ window.parseVoiceInput = function parseVoiceInput(text) {
     }
   }
 
-  // ── OBS ── strip amount, currency words and verb prefixes
-  let obs = text
-    .replace(/\d[\d.,]*\s*(mil(lones?)?|k\b)?/gi,'')
-    .replace(/\b(gaste|pague|compre|sali|costo|cobr[eé]|recibi|ingrese|con|por|pesos?|dolares?|ars|usd|tarjeta|efectivo|cash|en naranja|en galicia|en mercado pago|en uala|en santander|con visa|con debito|con credito)\b/gi,'')
-    .replace(/\s{2,}/g,' ').trim();
+  // ── OBS ── strip all detected/auto-filled fields, keep only extra info
+  const _esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  let obs = text;
+  // 1. Números y multiplicadores
+  obs = obs.replace(/\d[\d.,]*\s*(millones?|mil\b|k\b|m\b)?/gi,' ');
+  // 2. Verbos y palabras de acción
+  obs = obs.replace(/\b(gast[eéoó]|pagu[eé]|pag[oó]|compr[eéoó]|sali[oó]?|sal[ií]|cost[oóeé]|cobr[eéioó]?|recib[ií]|recibi[oó]|ingres[eéoó]|me\s+pagaron|gan[eé])\b/gi,' ');
+  // 3. Moneda y medio de pago
+  obs = obs.replace(/\b(pesos?|dolares?|dolar|euros?|ars|usd|eur|verde|tarjeta|efectivo|cash|cr[eé]dito|d[eé]bito|cuotas?)\b/gi,' ');
+  // 4. Keywords de la categoría detectada
+  const _detCatKws = CAT_KW[catCode] || [];
+  _detCatKws.forEach(function(kw){ obs = obs.replace(new RegExp('\\b'+_esc(kw)+'\\b','gi'),' '); });
+  // 5. Nombre y banco de la cuenta detectada
+  const _detAcct = state.accounts.find(function(a){ return a.id===accountId; });
+  if(_detAcct){
+    if(_detAcct.name) obs = obs.replace(new RegExp(_esc(_detAcct.name),'gi'),' ');
+    if(_detAcct.bank) obs = obs.replace(new RegExp('\\b'+_esc(_detAcct.bank)+'\\b','gi'),' ');
+  }
+  // 6. Subcat detectada
+  if(subcat) obs = obs.replace(new RegExp('\\b'+_esc(subcat)+'\\b','gi'),' ');
+  // 7. Palabras de cantidad verbal
+  obs = obs.replace(/\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|doce|cien|ciento|mil)\b/gi,' ');
+  // 8. Palabras de cuenta/banco comunes que pudieron matchear
+  obs = obs.replace(/\b(banco|cuenta|tarjeta|visa|master|mastercard|naranja|galicia|santander|bbva|hsbc|icbc|supervielle|macro|nacion|provincia|uala|brubank|mercado\s*pago|personal\s*pay|modo|billetera)\b/gi,' ');
+  // 9. Preposiciones sueltas que quedan al inicio
+  obs = obs.replace(/^\s*(con|en|por|de|del|al|la|el|un|una|y)\s+/gi,'');
+  obs = obs.replace(/\s{2,}/g,' ').trim();
   if(obs) obs = obs.charAt(0).toUpperCase() + obs.slice(1);
   if(!obs || obs.length < 3) obs = '';
 
@@ -2404,6 +2426,10 @@ window.parseVoiceInput = function parseVoiceInput(text) {
   if(!amount || amount <= 0) {
     showToast('No entendí el monto. Decí por ejemplo: "150000 supermercado"');
     return;
+  }
+  // Guardar lo detectado para comparar con lo que el usuario guarde
+  if(window._voiceSession) {
+    window._voiceSession.detected = { catCode, subcat, accountId };
   }
   setTimeout(() => {
     openAddModal({ type, currency, amount, catCode, subcat, accountId, cuotas, cuotasNum, nature, obs, eventId });
@@ -5959,7 +5985,14 @@ window.saveState=function(){
     var txs=state.txs||[];
     if(txs.length>0){
       var last=txs[txs.length-1];
-      if(last&&last.obs===sess13.text&&typeof saveVoiceLearning==='function'){
+      // Solo aprende si el usuario corrigió algún campo respecto a lo detectado
+      var det = sess13.detected || {};
+      var userCorrected = last && (
+        (last.catCode  && last.catCode  !== det.catCode)  ||
+        (last.subcat   && last.subcat   !== det.subcat)   ||
+        (last.accountId && last.accountId !== det.accountId)
+      );
+      if(userCorrected && typeof saveVoiceLearning==='function'){
         _svL13=true;
         try{ saveVoiceLearning(sess13.text,{catCode:last.catCode,subcat:last.subcat,accountId:last.accountId}); }catch(e){}
         _svL13=false;
