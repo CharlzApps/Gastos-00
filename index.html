@@ -642,7 +642,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.49';
+const APP_VERSION = 'v1.50';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8057,6 +8057,31 @@ async function _doSync(){
 
 window.dbxSync=function(){ _doSync(); };
 
+window.dbxForceDownload=async function(){
+  if(!confirm('¿Reemplazar todos los datos locales con los de Dropbox?\nSe perderán los cambios locales no sincronizados.')) return;
+  var icon=document.getElementById('dbx-sync-icon');
+  if(icon) icon.style.animation='dbx-spin 1s linear infinite';
+  try {
+    var token=await _ensureFreshToken();
+    var dlRes=await fetch(DBX_DOWNLOAD_URL,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
+    });
+    if(!dlRes.ok) throw new Error('Error descargando: '+dlRes.status);
+    var remote=await dlRes.json();
+    if(!remote || typeof remote !== 'object') throw new Error('Datos inválidos en Dropbox');
+    state=remote;
+    saveState();
+    _dbxSet('lastSync', Date.now());
+    showToast('Descarga completa — '+(remote.txs||[]).length+' movimientos');
+    setTimeout(function(){ window.location.reload(); }, 1000);
+  } catch(e){
+    showToast('Error: '+e.message);
+  } finally {
+    if(icon) icon.style.animation='';
+  }
+};
+
 // ── OAuth flow ────────────────────────────────────────────────────
 window.dbxStartAuth=async function(){
   var appKey=document.getElementById('dbx-appkey-input').value.trim();
@@ -8132,6 +8157,7 @@ function _renderDbxCfg(){
       +'<span style="font-size:13px;color:var(--text2);flex:1">Conectado · último sync: '+lastSync+'</span>'
       +'<button onclick="dbxSync()" style="font-size:12px;padding:5px 12px;border-radius:var(--radius);border:none;background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;font-weight:600">Sync</button>'
       +'</div>'
+      +'<button onclick="dbxForceDownload()" style="width:100%;padding:8px;border-radius:var(--radius);border:1px solid rgba(220,140,0,0.4);background:rgba(220,140,0,0.06);color:#b87800;font-size:12px;cursor:pointer;font-family:inherit;margin-bottom:6px">⬇ Forzar descarga desde Dropbox</button>'
       +'<button onclick="dbxDisconnect()" style="width:100%;padding:8px;border-radius:var(--radius);border:1px solid var(--border);background:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">Desconectar</button>';
   } else {
     root.innerHTML=
