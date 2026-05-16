@@ -642,7 +642,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.48';
+const APP_VERSION = 'v1.49';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4053,6 +4053,13 @@ function resetEverything() {
   state.currentAccountId = null;
   state.activeEventId = null;
   state.queryHistory = [];
+  // Limpiar tombstones para que el sync pueda restaurar datos del remoto
+  state.deletedTxIds = {};
+  state.deletedAccountIds = {};
+  state.deletedCatCodes = {};
+  state.deletedSubcats = {};
+  state.groupOrder = [];
+  state.accountGroupOrder = {};
   saveState();
   renderMonths();
   updateAccountHeader();
@@ -8037,6 +8044,10 @@ async function _doSync(){
     if(addedToRemote) parts.push('+'+addedToRemote+' subidos al remoto');
     if(parts.length) msg+=' — '+parts.join(', ');
     showToast(msg);
+    // Si hubo cambios del remoto, recargar la página para asegurar render completo
+    if(addedFromRemote || updatedFromRemote) {
+      setTimeout(function(){ window.location.reload(); }, 1200);
+    }
   } catch(e){
     showToast('Sync error: '+e.message);
   } finally {
