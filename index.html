@@ -376,6 +376,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <!-- HOME TAB -->
     <div id="tab-home" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
       <div id="credit-dates-bar" style="display:none;flex-shrink:0;padding:0 12px 8px;"></div>
+      <div id="reviewed-bar" style="display:none;flex-shrink:0;"></div>
       <div class="swipe-container" id="swipe-container">
         <div class="swipe-inner" id="swipe-inner">
           <div class="month-page" id="page-prev"></div>
@@ -642,7 +643,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.56';
+const APP_VERSION = 'v1.71';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -964,15 +965,38 @@ function renderMonthPage(pageId, y, m) {
                - dts.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
     cumByDay[ds] = _running;
   });
+  // Botón de revisado por día
+  const _rvAcct = state.currentAccountId && state.accounts.find(a => a.id === state.currentAccountId);
+  const _rvMode = _rvAcct && (_rvAcct.type === 'account' || _rvAcct.type === 'wallet');
+  const _rvDate = _rvMode && _rvAcct.reviewedDate ? _rvAcct.reviewedDate : null;
+  let _rvLineInserted = false;
   page.innerHTML = sorted.map(dateStr => {
     const dayTxs = byDay[dateStr];
     const d = new Date(dateStr+'T00:00:00');
     const cum = cumByDay[dateStr];
     const cumStr = (cum>=0?'+':'-') + fmtAmt(Math.abs(cum));
     const cumColor = cum>=0 ? 'var(--green)' : 'var(--red)';
-    return `<div class="day-group">
+    const isMarkedDay = _rvDate === dateStr;
+    const isBelowMark = _rvDate && dateStr < _rvDate;
+    // Línea divisoria: aparece justo encima del primer día revisado
+    let divider = '';
+    if (_rvDate && (isMarkedDay || isBelowMark) && !_rvLineInserted) {
+      _rvLineInserted = true;
+      divider = `<div style="display:flex;align-items:center;gap:8px;padding:6px 14px;margin:4px 0;background:var(--bg3);border-radius:10px">
+        <div style="flex:1;height:1px;background:var(--green);opacity:0.5"></div>
+        <span style="font-size:11px;color:var(--green);font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:4px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>
+          Revisado hasta aquí
+        </span>
+        <div style="flex:1;height:1px;background:var(--green);opacity:0.5"></div>
+      </div>`;
+    }
+    // Botón de revisado en el día
+    const rvDayBtn = _rvMode ? `<button onclick="toggleReviewedDay('${dateStr}',${cumByDay[dateStr]||0})" title="${isMarkedDay?'Quitar marca':'Marcar día como revisado'}" style="width:20px;height:20px;border-radius:50%;border:${isMarkedDay?'2px solid var(--green)':'1.5px solid var(--border)'};background:${isMarkedDay?'rgba(26,122,74,0.12)':'none'};display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0">${isMarkedDay?'<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" width="11" height="11"><polyline points="20 6 9 17 4 12"/></svg>':''}</button>` : '';
+    return `${divider}<div class="day-group">
       <div class="day-header">
         <div class="day-num">${d.getDate()}</div>
+        ${rvDayBtn}
         <div class="day-info">
           <div class="day-name">${DAYS[d.getDay()]}</div>
         </div>
@@ -983,7 +1007,7 @@ function renderMonthPage(pageId, y, m) {
   }).join('');
 }
 
-function txItemHTML(t) {
+function txItemHTML(t, showReviewBtn, txReviewed) {
   const cat = state.categories.find(c=>c.code===t.catCode) || state.categories.find(c=>c.code==='OTRO');
 
   const amtColor = t.type==='expense'?'var(--red)':t.type==='income'?'var(--green)':'var(--blue)';
@@ -1010,6 +1034,7 @@ function txItemHTML(t) {
   }
   const isTransfer = !!t.transferGroup;
   const onclick = isTransfer ? `openTransferModal('${t.transferGroup}')` : `openEditModal('${t.id}')`;
+  const txOpacity = '';
 
   if(isTransfer) {
     const otherLeg = state.txs.find(tx=>tx.transferGroup===t.transferGroup && tx.id!==t.id);
@@ -1018,7 +1043,7 @@ function txItemHTML(t) {
     const arrow = isOut ? '→' : '←';
     const tfColor = isOut ? 'var(--red)' : 'var(--green)';
     const tfSign  = isOut ? '−' : '+';
-    return `<div class="tx-item" onclick="${onclick}">
+    return `<div class="tx-item" onclick="${onclick}" style="${txOpacity}">
       <div class="tx-icon-wrap">
         <div class="tx-icon" style="background:var(--bg3);color:var(--blue)">${TRANSFER_ICON}</div>
       </div>
@@ -4892,7 +4917,54 @@ function updateAccountHeader() {
     }
   }
   renderCreditDatesBar();
+  renderReviewedBar();
 }
+
+function renderReviewedBar() {
+  var bar = document.getElementById('reviewed-bar');
+  if (!bar) return;
+  var acctId = state.currentAccountId;
+  var acct = acctId && state.accounts.find(function(a){ return a.id === acctId; });
+  if (!acct || (acct.type !== 'account' && acct.type !== 'wallet')) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'block';
+  var rdDate = acct.reviewedDate;
+  var rvLabel = rdDate ? formatReviewedDate(rdDate) : null;
+  bar.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 14px 7px;gap:8px">'
+    + '<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)">'
+    + '<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>'
+    + '<span>' + (rvLabel ? ('Revisado hasta el <b>' + rvLabel + '</b>') : 'Tocá ○ junto al total del día para marcar') + '</span>'
+    + '</div>'
+    + (rdDate ? '<button onclick="toggleReviewedDay(\''+rdDate+'\')" style="font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-family:var(--font)">✕ quitar</button>' : '')
+    + '</div>';
+}
+
+function formatReviewedDate(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  return d.getDate() + ' ' + ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function toggleReviewedDay(dateStr, balance) {
+  var acctId = state.currentAccountId;
+  var acct = acctId && state.accounts.find(function(a){ return a.id === acctId; });
+  if (!acct) return;
+  if (acct.reviewedDate === dateStr) {
+    delete acct.reviewedDate;
+    delete acct.reviewedBalance;
+    showToast('Marca de revisado eliminada');
+  } else {
+    acct.reviewedDate = dateStr;
+    if (balance !== undefined && balance !== null) acct.reviewedBalance = Math.round(Math.abs(balance));
+    showToast('✓ Revisado hasta el ' + formatReviewedDate(dateStr));
+  }
+  acct.updatedAt = Date.now();
+  saveState();
+  renderReviewedBar();
+  renderMonths();
+}
+
 function showAccountPicker() {
   var visibleCurs = getVisibleCurrencies();
   var visibleAccts = state.accounts.filter(function(a){return a.id!=='__unassigned__';});
@@ -6579,7 +6651,7 @@ function _loadXlsx(cb) {
 var IMP = {
   rows: [], accountIdARS: '', accountIdUSD: '', fileName: '', fileType: '',
   rawRows: [], headers: [],
-  colMap: { date:-1, desc:-1, amount:-1 },
+  colMap: { date:-1, desc:-1, amount:-1, credit:-1, saldo:-1 },
   currentBank: '',      // banco actualmente seleccionado en el modal de revisión
   cardBrand: '',        // tarjeta seleccionada en el modal de revisión (Visa/Master/Amex)
   detectedCard: '',     // tarjeta detectada del archivo
@@ -6850,15 +6922,38 @@ function _processFile(file) {
         try {
           var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
           var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, defval:'' });
+          _detectBankStatementFromFilename();
           _prepareTable(rows);
         } catch(e2) { _closeImp(); showToast('Error leyendo Excel: ' + e2.message); }
       });
     };
     reader.readAsArrayBuffer(file);
   } else {
-    reader.onload = function(e) { _prepareTable(_parseCsv(e.target.result)); };
+    reader.onload = function(e) {
+      _detectBankStatementFromFilename();
+      _prepareTable(_parseCsv(e.target.result));
+    };
     reader.readAsText(file, 'UTF-8');
   }
+}
+
+// Detecta extracto bancario por nombre de archivo y setea IMP.accountIdARS al banco correcto
+function _detectBankStatementFromFilename() {
+  if (!_isBankMovPDF(IMP.fileName, '', '')) return;
+  IMP.isBankStatement = true;
+  var det = _detectBank('', IMP.fileName);
+  var bsId = _detectBankAccount(det.bank);
+  // Fallback 1: cualquier cuenta bancaria (type=account) con reviewedDate seteado
+  if (!bsId) {
+    var rv = state.accounts.find(function(a){ return a.type==='account' && a.reviewedDate; });
+    if (rv) bsId = rv.id;
+  }
+  // Fallback 2: cualquier cuenta bancaria ARS
+  if (!bsId) {
+    var fa = state.accounts.find(function(a){ return a.type==='account' && a.currency==='ARS'; });
+    if (fa) bsId = fa.id;
+  }
+  if (bsId) IMP.accountIdARS = bsId;
 }
 
 // ── Extracción texto PDF ──────────────────────────────────────────
@@ -7241,16 +7336,18 @@ function _prepareTable(rows) {
   var hasHeader=first.some(function(c){return /fecha|date|descripci|comercio|monto|importe|debe|haber|concepto/i.test(c||'');});
   IMP.headers = hasHeader ? first.map(String) : first.map(function(_,i){return 'Col '+(i+1);});
   IMP.rawRows  = hasHeader ? rows.slice(1) : rows;
-  IMP.colMap = {date:-1, desc:-1, amount:-1};
+  IMP.colMap = {date:-1, desc:-1, amount:-1, credit:-1, saldo:-1};
   IMP.headers.forEach(function(h,i) {
     var hn=(h||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     if (/fecha|date/.test(hn)&&IMP.colMap.date<0) IMP.colMap.date=i;
     if (/desc|concepto|comercio|detalle|movimiento|observ/.test(hn)&&IMP.colMap.desc<0) IMP.colMap.desc=i;
-    if (/^monto$|^importe$|^total$|^debe$|^cargo/.test(hn)&&IMP.colMap.amount<0) IMP.colMap.amount=i;
+    if (/^monto$|^importe$|^total$|^debe$|^cargo|^debito|^d[eé]bito/.test(hn)&&IMP.colMap.amount<0) IMP.colMap.amount=i;
+    if (/^credito$|^cr[eé]dito$|^haber$|^abono$/.test(hn)&&IMP.colMap.credit<0) IMP.colMap.credit=i;
+    if (/^saldo$/.test(hn)&&IMP.colMap.saldo<0) IMP.colMap.saldo=i;
   });
   if (IMP.colMap.date<0) IMP.colMap.date=0;
   if (IMP.colMap.desc<0) IMP.colMap.desc=IMP.headers.length>2?1:0;
-  if (IMP.colMap.amount<0) IMP.colMap.amount=IMP.headers.length-1;
+  if (IMP.colMap.amount<0&&IMP.colMap.credit<0) IMP.colMap.amount=IMP.headers.length-1;
   _renderColMap();
 }
 
@@ -7264,9 +7361,10 @@ function _renderColMap() {
   }
   var prevHtml=prev.map(function(row){
     return '<div style="display:flex;gap:8px;font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">'
-      +row.map(function(c,i){ var active=cm.date===i||cm.desc===i||cm.amount===i; return '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(active?'color:var(--accent);font-weight:600':'')+'">'+_esc(String(c).slice(0,18))+'</span>'; }).join('')
+      +row.map(function(c,i){ var active=cm.date===i||cm.desc===i||cm.amount===i||cm.credit===i; var color=cm.credit===i?'color:var(--green);font-weight:600':(active?'color:var(--accent);font-weight:600':''); return '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+color+'">'+_esc(String(c).slice(0,18))+'</span>'; }).join('')
       +'</div>';
   }).join('');
+  var creditNote = cm.credit>=0 ? '<div style="font-size:11px;color:var(--green);margin-top:-8px;margin-bottom:12px">✓ Col. crédito mapeada — filas con valor ahí se importan como ingresos</div>' : '<div style="font-size:11px;color:var(--text3);margin-top:-8px;margin-bottom:12px">Opcional: si tu archivo tiene columnas separadas de débito y crédito, mapeá ambas.</div>';
   _root().innerHTML='<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
     +'<div class="imp-sheet" onclick="event.stopPropagation()">'
     +'<div class="modal-handle"></div>'
@@ -7275,7 +7373,7 @@ function _renderColMap() {
     +'<div style="font-size:12px;color:var(--text3)">Indicá qué columna tiene cada dato (resaltado en verde).</div>'
     +'</div>'
     +'<div class="imp-body" style="padding:12px 16px">'
-    +colBtns('date','Fecha')+colBtns('desc','Descripción')+colBtns('amount','Monto / débito')
+    +colBtns('date','Fecha')+colBtns('desc','Descripción')+colBtns('amount','Monto / débito')+creditNote+colBtns('credit','Crédito / haber (opcional)')+colBtns('saldo','Saldo (opcional — para corte exacto por balance)')
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:6px">Vista previa:</div>'
     +'<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;overflow-x:auto">'+prevHtml+'</div>'
     +'</div>'
@@ -7288,13 +7386,25 @@ function _renderColMap() {
 window.impSetCol = function(field, idx) { IMP.colMap[field]=idx; _renderColMap(); };
 
 window.impApplyMap = function() {
-  if (IMP.colMap.date<0||IMP.colMap.desc<0||IMP.colMap.amount<0) { showToast('Seleccioná Fecha, Descripción y Monto'); return; }
-  var yr=new Date().getFullYear(), parsed=[];
+  var hasDebit = IMP.colMap.amount>=0, hasCredit = IMP.colMap.credit>=0, hasSaldo = IMP.colMap.saldo>=0;
+  if (IMP.colMap.date<0||IMP.colMap.desc<0||(!hasDebit&&!hasCredit)) { showToast('Seleccioná Fecha, Descripción y al menos Monto o Crédito'); return; }
+  var yr=new Date().getFullYear(), parsed=[], fileIdx=0;
   IMP.rawRows.forEach(function(row) {
-    var rd=String(row[IMP.colMap.date]||'').trim(), desc=String(row[IMP.colMap.desc]||'').trim(), ra=String(row[IMP.colMap.amount]||'').trim();
-    if (!rd||!desc||!ra) return;
-    var date=_pDateStr(rd,yr), amt=_pAmt(ra);
-    if (date&&amt>0&&desc.length>=2) parsed.push({date:date,description:desc,amount:amt});
+    var rd=String(row[IMP.colMap.date]||'').trim(), desc=String(row[IMP.colMap.desc]||'').trim();
+    var fi=fileIdx++; // índice original del archivo (0=primer fila de datos)
+    if (!rd||!desc) return;
+    var date=_pDateStr(rd,yr); if(!date||desc.length<2) return;
+    var saldo = hasSaldo ? _pAmt(String(row[IMP.colMap.saldo]||'').trim()) : null;
+    var debitAmt  = hasDebit  ? _pAmt(String(row[IMP.colMap.amount]||'').trim()) : 0;
+    var creditAmt = hasCredit ? _pAmt(String(row[IMP.colMap.credit]||'').trim()) : 0;
+    if (hasCredit && hasDebit) {
+      if (creditAmt>0) parsed.push({date:date,description:desc,amount:creditAmt,type:'income',saldo:saldo,_fileIdx:fi});
+      else if (debitAmt>0) parsed.push({date:date,description:desc,amount:debitAmt,type:'expense',saldo:saldo,_fileIdx:fi});
+    } else if (hasDebit) {
+      if (debitAmt>0) parsed.push({date:date,description:desc,amount:debitAmt,saldo:saldo,_fileIdx:fi});
+    } else {
+      if (creditAmt>0) parsed.push({date:date,description:desc,amount:creditAmt,type:'income',saldo:saldo,_fileIdx:fi});
+    }
   });
   if (!parsed.length) { showToast('No se encontraron filas válidas con ese mapeo'); return; }
   _buildRows(parsed); _renderReview();
@@ -7303,6 +7413,28 @@ window.impApplyMap = function() {
 // ── Construir filas ───────────────────────────────────────────────
 function _buildRows(parsed) {
   var learning=_getLearning(), allRows=[], idx=0;
+  // reviewedDate: usar la cuenta ARS principal como referencia para todos los movimientos
+  var _rvAcctMain=state.accounts.find(function(a){return a.id===IMP.accountIdARS;});
+  var _globalRvDate=_rvAcctMain&&_rvAcctMain.reviewedDate||null;
+  var _globalRvBalance=_rvAcctMain&&_rvAcctMain.reviewedBalance||null;
+  // ── Determinar el fileIdx de corte por saldo (más preciso que fecha) ──
+  // Si la cuenta tiene reviewedBalance Y el archivo tiene columna Saldo:
+  // encontrar la primera fila del archivo (en orden de archivo) cuyo saldo coincida.
+  // Todo lo que siga en el archivo (fileIdx >= cutoffFileIdx) = ya revisado.
+  var _cutoffFileIdx = -1;
+  // El archivo está en orden cronológico inverso (más reciente primero).
+  // Buscar el saldo coincidente SOLO dentro del período revisado (date <= reviewedDate)
+  // para evitar que un saldo idéntico en una fecha más nueva desplace el corte.
+  if (_globalRvBalance && _globalRvDate && parsed.some(function(p){return p.saldo!=null;})) {
+    for (var _ci=0; _ci<parsed.length; _ci++) {
+      if (parsed[_ci].saldo!=null
+          && parsed[_ci].date <= _globalRvDate
+          && Math.abs(parsed[_ci].saldo - _globalRvBalance) < 1) {
+        _cutoffFileIdx = parsed[_ci]._fileIdx !== undefined ? parsed[_ci]._fileIdx : _ci;
+        break;
+      }
+    }
+  }
   parsed.forEach(function(p) {
     var currency=p.currency||'ARS';
     var aid=(currency==='USD'&&IMP.accountIdUSD)?IMP.accountIdUSD:IMP.accountIdARS;
@@ -7327,10 +7459,20 @@ function _buildRows(parsed) {
     if(IMP.stmtMonth){
       if(cuota||p.date<IMP.stmtMonth) rowDate=IMP.stmtMonth;
     }
-    // Fila del resumen (solo cuota actual — las siguientes se generan al confirmar)
-    var dup=_isDup({date:rowDate,amount:p.amount,description:p.description,origDate:p.date},aid);
+    // ── Revisado: corte por saldo (exacto) o por fecha (fallback) ──
+    var pFileIdx = p._fileIdx !== undefined ? p._fileIdx : idx;
+    var alreadyReviewed;
+    if (_cutoffFileIdx >= 0) {
+      // Corte por saldo: todo lo que está en el archivo después del punto de saldo = revisado
+      alreadyReviewed = (pFileIdx >= _cutoffFileIdx);
+    } else {
+      // Fallback: corte por fecha
+      alreadyReviewed = !!(_globalRvDate && rowDate <= _globalRvDate);
+    }
+    // Solo chequear duplicados para filas fuera del período revisado
     var txType=p.type||'expense'; // 'income' para créditos/devoluciones
-    allRows.push({idx:idx++,date:rowDate,description:p.description,baseDesc:baseDesc,amount:p.amount,currency:currency,type:txType,accountId:aid,catCode:catCode,subcat:subcat,nature:nature,include:!dup,duplicate:dup,cuotaGroup:cuotaGroup,cuotaNum:cuota?cuota.n:null,cuotaTotal:cuota?cuota.total:null,isProjected:false});
+    var dup=alreadyReviewed?false:_isDup({date:rowDate,amount:p.amount,description:p.description,origDate:p.date},aid);
+    allRows.push({idx:idx++,date:rowDate,description:p.description,baseDesc:baseDesc,amount:p.amount,currency:currency,type:txType,accountId:aid,catCode:catCode,subcat:subcat,nature:nature,include:!dup&&!alreadyReviewed,duplicate:dup,reviewed:alreadyReviewed,cuotaGroup:cuotaGroup,cuotaNum:cuota?cuota.n:null,cuotaTotal:cuota?cuota.total:null,isProjected:false});
   });
   // Ordenar de más reciente a más antiguo para facilitar comparación con el resumen original
   allRows.sort(function(a,b){ return b.date.localeCompare(a.date) || b.idx - a.idx; });
@@ -7340,12 +7482,25 @@ function _buildRows(parsed) {
 // ── Modal: revisar ────────────────────────────────────────────────
 function _renderReview() {
   var rows=IMP.rows;
+  // Calcular cutoff de revisado SIEMPRE desde la cuenta actual (no del flag estático r.reviewed)
+  var _rvMainAcct=state.accounts.find(function(a){return a.id===IMP.accountIdARS;});
+  var _rvCutoff=_rvMainAcct&&_rvMainAcct.reviewedDate||null;
+  // Forzar include=false en filas ESTRICTAMENTE anteriores al período revisado.
+  // Usamos < (no <=) para que filas del mismo día del corte usen el flag reviewed
+  // calculado por _buildRows con la lógica de fileIdx (más precisa dentro del mismo día).
+  if(_rvCutoff) rows.forEach(function(r){ if(r.date<_rvCutoff){r.include=false;r.reviewed=true;} });
+  // Separar revisados usando el flag r.reviewed (ya calculado por _buildRows + override anterior)
+  var rvRows=rows.filter(function(r){return !r.isProjected&&r.reviewed;});
+  var activeRows=rows.filter(function(r){return !r.isProjected&&!r.reviewed;});
   // Totales solo del resumen (no proyectadas), incl. duplicados, para verificar contra el banco
-  var stRows=rows.filter(function(r){return !r.isProjected;});
+  var stRows=activeRows.filter(function(r){return !r.isProjected;});
   var newCnt=stRows.filter(function(r){return !r.duplicate;}).length;
-  var dupCnt=rows.filter(function(r){return r.duplicate;}).length;
-  var projCnt=rows.filter(function(r){return r.isProjected&&!r.duplicate;}).length;
-  var selCnt=rows.filter(function(r){return r.include;}).length;
+  var dupCnt=activeRows.filter(function(r){return r.duplicate;}).length;
+  var projCnt=activeRows.filter(function(r){return r.isProjected&&!r.duplicate;}).length;
+  var selCnt=activeRows.filter(function(r){return r.include;}).length;
+  // Totales de revisados (para mostrar el bloque de saldo base)
+  var rvTotalARS=rvRows.reduce(function(s,r){return r.currency==='ARS'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
+  var rvTotalUSD=rvRows.reduce(function(s,r){return r.currency==='USD'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
   var totalARS=stRows.reduce(function(s,r){return r.currency==='ARS'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
   var totalUSD=stRows.reduce(function(s,r){return r.currency==='USD'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
 
@@ -7373,21 +7528,21 @@ function _renderReview() {
       +'<select style="flex:1;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:inherit" onchange="impSetCard(this.value)">'+cardOpts+'</select>'
       +'</div>'
     )
-    // Totales
+    // Totales (IDs para actualización dinámica al tildar/destildar)
     +'<div style="display:flex;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:10px;align-items:center">'
     +'<div style="flex:1">'
-    +'<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Total $ ('+stRows.filter(function(r){return r.currency==='ARS';}).length+' mov.)</div>'
-    +'<div style="font-size:15px;font-weight:700;font-family:var(--mono)">'+numFmt(totalARS)+'</div>'
+    +'<div id="imp-lbl-ars" style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Seleccionados $</div>'
+    +'<div id="imp-total-ars" style="font-size:15px;font-weight:700;font-family:var(--mono)">'+numFmt(totalARS)+'</div>'
     +'</div>'
     +'<div style="flex:1">'
-    +'<div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Total U$S ('+stRows.filter(function(r){return r.currency==='USD';}).length+' mov.)</div>'
-    +'<div style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--blue)">'+(totalUSD>0?numFmt(totalUSD):'—')+'</div>'
+    +'<div id="imp-lbl-usd" style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Seleccionados U$S</div>'
+    +'<div id="imp-total-usd" style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--blue)">'+(totalUSD>0?numFmt(totalUSD):'—')+'</div>'
     +'</div>'
     +(dupCnt?'<div style="font-size:10px;color:var(--text3);line-height:1.4;text-align:right;flex-shrink:0">incl.<br><strong>'+dupCnt+'</strong> ya reg.</div>':'')
     +'</div>';
 
   // ── Filas ──────────────────────────────────────────────────────
-  var rHtml=rows.map(function(row){
+  function _rowHtml(row) {
     var cat=state.categories.find(function(c){return c.code===row.catCode;})||state.categories[0];
     var cOpts=state.categories.map(function(c){return '<option value="'+c.code+'"'+(c.code===row.catCode?' selected':'')+'>'+_esc(c.code)+' '+(c.emoji||'')+'</option>';}).join('');
     var subs=cat&&cat.subcats?cat.subcats:[];
@@ -7428,7 +7583,33 @@ function _renderReview() {
       +'</div>'
       +'</div>'
       +'</div>';
-  }).join('')||'<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos</div>';
+  }
+  var rHtml=activeRows.map(_rowHtml).join('')||'<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos nuevos</div>';
+
+  // ── Bloque de "ya revisados" ───────────────────────────────────
+  var rvBlock='';
+  if(rvRows.length){
+    var rvAcct=state.accounts.find(function(a){return a.id===IMP.accountIdARS;});
+    var rvDateLabel=rvAcct&&rvAcct.reviewedDate?formatReviewedDate(rvAcct.reviewedDate):'';
+    var rvARS=Math.abs(rvTotalARS), rvUSD=Math.abs(rvTotalUSD);
+    var rvDetailsHtml=rvRows.map(function(row){
+      var isCredit=row.type==='income', isUSD=row.currency==='USD';
+      var amtColor=isCredit?'var(--green)':isUSD?'#5B8DEF':'var(--text3)';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">'
+        +'<span style="font-size:11px;font-family:var(--mono);color:var(--text3);flex-shrink:0;width:54px">'+_fDate(row.date)+'</span>'
+        +'<span style="flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(row.baseDesc||row.description)+'</span>'
+        +'<span style="font-size:11px;font-family:var(--mono);color:'+amtColor+';flex-shrink:0">'+(isCredit?'+ ':'')+numFmt(row.amount)+'</span>'
+        +'</div>';
+    }).join('');
+    rvBlock='<details style="margin:0;border-top:1px solid var(--border)">'
+      +'<summary style="list-style:none;display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;background:var(--bg2)">'
+      +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>'
+      +'<span style="flex:1;font-size:12px;font-weight:600;color:var(--text2)">Ya revisado hasta '+rvDateLabel+'</span>'
+      +'<span style="font-size:11px;font-family:var(--mono);color:var(--text3)">'+rvRows.length+' mov.'+(rvARS?' · '+numFmt(rvARS):'')+(rvUSD?' · U$S '+numFmt(rvUSD):'')+'</span>'
+      +'</summary>'
+      +'<div style="padding:0 16px 8px;max-height:220px;overflow-y:auto">'+rvDetailsHtml+'</div>'
+      +'</details>';
+  }
 
   var colHdr='<div style="display:flex;align-items:center;gap:8px;padding:5px 16px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0">'
     +'<span style="width:18px;flex-shrink:0"></span>'
@@ -7442,7 +7623,10 @@ function _renderReview() {
     +'<div style="padding:4px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0">'
     // Título + cerrar
     +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-    +'<div style="flex:1;font-size:15px;font-weight:600">Revisar movimientos</div>'
+    +'<div style="flex:1">'
+    +'<div style="font-size:15px;font-weight:600">Revisar movimientos</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(IMP.isBankStatement?'📋 Extracto cuenta bancaria':'💳 Resumen tarjeta de crédito')+'</div>'
+    +'</div>'
     +'<span id="_imp_brain" style="font-size:18px;opacity:0;margin-right:4px;transition:none">🧠</span>'
     +'<button onclick="_closeImp()" style="border:none;background:none;cursor:pointer;color:var(--text3);padding:4px;display:flex;align-items:center;justify-content:center;border-radius:50%">'
     +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>'
@@ -7450,13 +7634,14 @@ function _renderReview() {
     +'<div style="margin-bottom:10px">'
     +'<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(26,122,74,0.1);color:var(--green);margin-right:5px">'+newCnt+' nuevos</span>'
     +(projCnt?'<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(32,96,192,0.1);color:var(--blue);margin-right:5px">'+projCnt+' cuotas</span>':'')
-    +(dupCnt?'<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(212,144,10,0.1);color:var(--yellow)">'+dupCnt+' ya existentes</span>':'')
+    +(dupCnt?'<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(212,144,10,0.1);color:var(--yellow);margin-right:5px">'+dupCnt+' ya existentes</span>':'')
+    +(rvRows.length?'<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(26,122,74,0.07);color:var(--text3)">✓ '+rvRows.length+' revisados</span>':'')
     +'</div>'
     // Cuentas + totales
     +acctBlk
     +'</div>'
     +colHdr
-    +'<div class="imp-body">'+rHtml+'</div>'
+    +'<div class="imp-body">'+rHtml+rvBlock+'</div>'
     +'<div class="imp-footer">'
     +'<button onclick="_closeImp()" style="flex:1;padding:11px;border-radius:var(--radius);border:none;background:var(--bg3);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancelar</button>'
     +'<button id="imp-ok-btn" onclick="impConfirm()" style="flex:2;padding:11px;border-radius:var(--radius);border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Importar '+selCnt+' movimiento'+(selCnt!==1?'s':'')+'</button>'
@@ -7537,9 +7722,14 @@ function _impApplyBankCard(bank, card) {
     ||accts.find(function(a){ return (!bank||a.bank===bank)&&a.currency===currency; });
   }
   function _updRows(aid, isUSD){
+    var rvAcct=state.accounts.find(function(a){return a.id===IMP.accountIdARS;});
+    var rvDate=rvAcct&&rvAcct.reviewedDate||null;
     IMP.rows.forEach(function(r){
       if((isUSD?r.currency==='USD':r.currency!=='USD')&&aid){
         r.accountId=aid;
+        // Si la fila cae dentro del período revisado, no tocar include ni duplicate
+        if(rvDate&&r.date<=rvDate){ r.reviewed=true; r.include=false; r.duplicate=false; return; }
+        r.reviewed=false;
         var was=r.duplicate;
         r.duplicate=_isDup(r,aid);
         if(!was&&r.duplicate)r.include=false;
@@ -7568,7 +7758,9 @@ window.impSetCard = function(card){
 };
 
 window.impConfirm = function() {
-  var todo=IMP.rows.filter(function(r){return r.include;});
+  var _cfRvAcct=state.accounts.find(function(a){return a.id===IMP.accountIdARS;});
+  var _cfRvCutoff=_cfRvAcct&&_cfRvAcct.reviewedDate||null;
+  var todo=IMP.rows.filter(function(r){return r.include&&(!_cfRvCutoff||r.date>_cfRvCutoff);});
   if (!todo.length) { showToast('Seleccioná al menos un movimiento'); return; }
   var projTotal=0;
   var importedIds=[];
@@ -7696,7 +7888,7 @@ function _pDateStr(str,fy){
   str=str.trim();
   var m1=str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/); if(m1)return _bDate(m1[3],m1[2],m1[1]);
   var m2=str.match(/^(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{2,4}))?$/); if(m2)return _bDate(m2[1],m2[2],m2[3]||fy);
-  var sn=parseInt(str); if(!isNaN(sn)&&sn>40000&&sn<60000){ var dd=new Date((sn-25569)*86400*1000); return dd.getFullYear()+'-'+_p2(dd.getMonth()+1)+'-'+_p2(dd.getDate()); }
+  var sn=parseInt(str); if(!isNaN(sn)&&sn>40000&&sn<60000){ var dd=new Date((sn-25569)*86400*1000); return dd.getUTCFullYear()+'-'+_p2(dd.getUTCMonth()+1)+'-'+_p2(dd.getUTCDate()); }
   return null;
 }
 function _pAmt(str){
@@ -7717,27 +7909,30 @@ function _isDup(row,aid){
   if(!state||!state.txs)return false;
   var rowAmt = parseFloat(row.amount) || 0;
   if(rowAmt === 0) return false;
-  var rowMs  = new Date((row.date    ||'')+'T00:00:00').getTime(); // fecha ajustada (stmtMonth si aplica)
-  var origMs = new Date((row.origDate||row.date||'')+'T00:00:00').getTime(); // fecha original del PDF
+  var isBankStmt = !!IMP.isBankStatement;
+  var rowMs  = new Date((row.date    ||'')+'T00:00:00').getTime();
+  var origMs = new Date((row.origDate||row.date||'')+'T00:00:00').getTime();
   var amtTol = Math.max(1, rowAmt * 0.01);
-  // Primer día del mes siguiente a la fecha original
-  // = lo que stmtMonth habría producido para movimientos "overflow"
   var origD = new Date(origMs);
   var nextMonthFirstMs = new Date(origD.getFullYear(), origD.getMonth()+1, 1).getTime();
   var rowDescNorm = _normDesc(row.description || row.obs || '');
   return state.txs.some(function(t){
     var tAmt = parseFloat(t.amount) || 0;
-    if(Math.abs(tAmt - rowAmt) > amtTol) return false;             // monto primero (siempre)
+    if(Math.abs(tAmt - rowAmt) > amtTol) return false;
     var tMs = new Date((t.date||'')+'T00:00:00').getTime();
-    // C1: fecha ajustada ±3 días — re-import con mismo stmtMonth, caso normal
+    if(isBankStmt) {
+      // Extracto bancario: fecha exacta. UTC ya corregido en _pDateStr, no hay desfase.
+      // Fecha exacta evita el falso positivo de ±3 días (ej: $438.35 del 11/05 vs 14/05).
+      return tMs === rowMs;
+    }
+    // Tarjeta de crédito: tolerancia ±3 días para cubrir ajustes de stmtMonth
+    // C1: fecha ajustada ±3 días
     if(Math.abs(tMs - rowMs)        <= 3 * 86400 * 1000) return true;
-    // C2: fecha original ±3 días — re-import sin stmtMonth vs primer import también sin stmtMonth
+    // C2: fecha original ±3 días
     if(Math.abs(tMs - origMs)       <= 3 * 86400 * 1000) return true;
-    // C3: 1° del mes siguiente a origDate ±3 días
-    // Re-import sin stmtMonth, pero el primer import SÍ ajustó al 1° del mes
-    // Ej: origDate=2026-02-22 → nextMonthFirst=2026-03-01; si t.date≈2026-03-01 → duplicado
+    // C3: 1° del mes siguiente a origDate ±3 días (overflow)
     if(Math.abs(tMs - nextMonthFirstMs) <= 3 * 86400 * 1000) return true;
-    // C4 (fallback): descripción igual + cualquiera de las tres fechas dentro de ±7 días
+    // C4 (fallback): descripción igual + ±7 días
     if(!rowDescNorm) return false;
     if(_normDesc(t.obs||'') !== rowDescNorm) return false;
     return Math.abs(tMs - rowMs)        <= 7 * 86400 * 1000
@@ -7747,8 +7942,16 @@ function _isDup(row,aid){
 }
 function _updBtn(){
   var btn=document.getElementById('imp-ok-btn'); if(!btn)return;
-  var cnt=IMP.rows.filter(function(r){return r.include;}).length;
+  var sel=IMP.rows.filter(function(r){return r.include;});
+  var cnt=sel.length;
   btn.textContent='Importar '+cnt+' movimiento'+(cnt!==1?'s':'');
+  // Actualizar totales seleccionados
+  var tARS=sel.reduce(function(s,r){return r.currency==='ARS'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
+  var tUSD=sel.reduce(function(s,r){return r.currency==='USD'?s+(r.type==='income'?-r.amount:r.amount):s;},0);
+  var elARS=document.getElementById('imp-total-ars');
+  var elUSD=document.getElementById('imp-total-usd');
+  if(elARS) elARS.textContent=numFmt(Math.abs(tARS));
+  if(elUSD) elUSD.textContent=tUSD>0?numFmt(tUSD):'—';
 }
 function _learnFlash(){
   var el=document.getElementById('_imp_brain');
