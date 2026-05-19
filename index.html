@@ -643,7 +643,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.73';
+const APP_VERSION = 'v1.74';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1195,6 +1195,12 @@ function renderCreditDatesBar() {
     +'<div style="background:var(--border);"></div>'
     +col('Próximo', nxtKey, nxt.cierreDate||'',  nxt.vencimientoDate||'',  true)
     +'</div></div>';
+  // Android Chrome no refleja el atributo value en inputs type=date insertados via innerHTML.
+  // Asignar .value por JS explícitamente después de insertar el DOM.
+  bar.querySelectorAll('input[type="date"]').forEach(function(el) {
+    var v = el.getAttribute('value');
+    if (v) el.value = v;
+  });
 }
 
 function saveCreditDate(monthKey, field, value) {
