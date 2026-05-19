@@ -643,7 +643,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.72';
+const APP_VERSION = 'v1.73';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8102,12 +8102,32 @@ function _mergeStates(local, remote){
       var lRD = loser.reviewedDate  || '';
       var bestRD = wRD >= lRD ? wRD : lRD;
       var bestRB = wRD >= lRD ? winner.reviewedBalance : loser.reviewedBalance;
+      // creditDates: merge aditivo por mes — unión de ambos, la fecha no vacía gana
+      // Evita que un sync pise los cierres/vencimientos guardados en el otro dispositivo
+      var wCD = winner.creditDates || {};
+      var lCD = loser.creditDates  || {};
+      var mergedCD = Object.assign({}, lCD);
+      Object.keys(wCD).forEach(function(mk) {
+        if (!mergedCD[mk]) {
+          mergedCD[mk] = wCD[mk];
+        } else {
+          var wm = wCD[mk] || {}, lm = mergedCD[mk] || {};
+          // Para cada campo, tomar la fecha más reciente (o la que exista)
+          var bestCD = function(a, b) { return (a && b) ? (a >= b ? a : b) : (a || b || ''); };
+          mergedCD[mk] = {
+            cierreDate:      bestCD(wm.cierreDate,      lm.cierreDate),
+            vencimientoDate: bestCD(wm.vencimientoDate, lm.vencimientoDate)
+          };
+        }
+      });
       var extra = {};
       if (mergedGrupo !== winner.grupo) extra.grupo = mergedGrupo;
       if (bestRD && bestRD !== winner.reviewedDate) {
         extra.reviewedDate    = bestRD;
         extra.reviewedBalance = bestRB;
       }
+      // Solo agregar creditDates al extra si difiere del winner
+      if (JSON.stringify(mergedCD) !== JSON.stringify(wCD)) extra.creditDates = mergedCD;
       accMap[a.id] = Object.keys(extra).length ? Object.assign({}, winner, extra) : winner;
     }
   });
