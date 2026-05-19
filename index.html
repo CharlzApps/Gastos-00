@@ -643,7 +643,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.71';
+const APP_VERSION = 'v1.72';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8096,9 +8096,19 @@ function _mergeStates(local, remote){
       var loser  = localNewer ? rem : a;
       // Si el ganador no tiene grupo pero el perdedor sí, preservar el grupo del perdedor
       var mergedGrupo = winner.grupo || loser.grupo || '';
-      accMap[a.id] = mergedGrupo !== winner.grupo
-        ? Object.assign({}, winner, { grupo: mergedGrupo })
-        : winner;
+      // reviewedDate: preservar el más avanzado (mayor fecha = más revisado)
+      // Esto evita que un sync pise la marca de revisado con una copia más vieja del campo
+      var wRD = winner.reviewedDate || '';
+      var lRD = loser.reviewedDate  || '';
+      var bestRD = wRD >= lRD ? wRD : lRD;
+      var bestRB = wRD >= lRD ? winner.reviewedBalance : loser.reviewedBalance;
+      var extra = {};
+      if (mergedGrupo !== winner.grupo) extra.grupo = mergedGrupo;
+      if (bestRD && bestRD !== winner.reviewedDate) {
+        extra.reviewedDate    = bestRD;
+        extra.reviewedBalance = bestRB;
+      }
+      accMap[a.id] = Object.keys(extra).length ? Object.assign({}, winner, extra) : winner;
     }
   });
   Object.keys(accTombstones).forEach(function(id){ delete accMap[id]; });
