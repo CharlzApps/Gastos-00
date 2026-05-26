@@ -644,7 +644,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.76';
+const APP_VERSION = 'v1.77';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1064,17 +1064,31 @@ function _vqmStartListening() {
         if(e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
         else intr += e.results[i][0].transcript;
       }
-      if(fin) _vqm._accumulated = (_vqm._accumulated + ' ' + fin).trim();
-      var display = (_vqm._accumulated + (intr?' '+intr:'')).trim();
+      // Mostrar interim mientras habla
+      var display = ((_vqm._accumulated||'') + (intr?' '+intr:'')).trim();
       var statusEl = document.getElementById('vqm-status');
-      if(statusEl) statusEl.textContent = display ? ('"'+display+'"') : 'Escuchando...';
+      if(statusEl && !fin) statusEl.textContent = display ? ('"'+display+'"') : 'Escuchando...';
+
+      if(fin) {
+        // Acumular resultado final
+        _vqm._accumulated = ((_vqm._accumulated||'') + ' ' + fin).trim();
+        _vqm.transcript = _vqm._accumulated;
+        var txt = _vqm._accumulated;
+        var st = document.getElementById('vqm-status');
+        if(st) st.textContent = 'Procesando...';
+        // AUTO-PROCESO: llenar campos inmediatamente sin esperar "Listo"
+        window._voiceSession = { text: txt };
+        setTimeout(function(){
+          try { parseVoiceInput(txt); } catch(ex){ console.error('[VQM]', ex); }
+        }, 150);
+      }
     };
 
     r.onend = function() {
       _vqmRec = null;
       if(!_vqm || !_vqm._listening) return;
-      // Si acumulamos algo, reiniciamos para seguir escuchando hasta que el usuario toque "Listo"
-      setTimeout(_startOne, 80);
+      // Reiniciar para capturar correcciones o frases adicionales
+      setTimeout(_startOne, 300);
     };
 
     r.onerror = function(ev) {
@@ -1099,21 +1113,11 @@ function _vqmStartListening() {
 }
 
 function _vqmStopListening() {
+  // Detiene el micrófono — los campos ya se llenaron por auto-proceso
   if(!_vqm) return;
   _vqm._listening = false;
   if(_vqmRec) { try { _vqmRec.abort(); } catch(e){} _vqmRec = null; }
-  var txt = (_vqm._accumulated || '').trim();
-  if(!txt) {
-    _renderVoiceQuickModal();
-    return;
-  }
-  _vqm.transcript = txt;
-  var statusEl = document.getElementById('vqm-status');
-  if(statusEl) statusEl.textContent = 'Procesando...';
-  var micBtn = document.getElementById('vqm-mic-btn');
-  if(micBtn) { micBtn.style.animation = 'none'; micBtn.style.background = 'var(--text3)'; }
-  window._voiceSession = { text: txt };
-  setTimeout(function(){ try { parseVoiceInput(txt); } catch(ex){ console.error('[VQM]', ex); } }, 200);
+  _renderVoiceQuickModal();
 }
 
 function _fillVoiceQuickModal(data) {
