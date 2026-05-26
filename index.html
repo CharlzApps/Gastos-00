@@ -644,7 +644,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.75';
+const APP_VERSION = 'v1.76';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -876,45 +876,68 @@ function _renderVoiceQuickModal() {
 
   var sym = s.currency==='USD'?'U$S':s.currency==='EUR'?'€':'$';
   var acct = state.accounts.find(function(a){ return a.id===s.accountId; });
-  var fmtAmt = s.amount>0 ? (sym+' '+new Intl.NumberFormat('es-AR').format(s.amount)) : '—';
-  var fmtCat = s.catCode ? (s.catCode+(s.subcat?(' · '+s.subcat):'')) : '—';
-  var fmtAcct = acct ? acct.name : '—';
-  var fmtObs = s.obs || '—';
+  var cat  = state.categories.find(function(c){ return c.code===s.catCode; });
+  var fmtAmt   = s.amount>0 ? (sym+' '+new Intl.NumberFormat('es-AR').format(s.amount)) : '—';
+  var fmtCat   = s.catCode ? s.catCode : '—';
+  var fmtSub   = s.subcat || '';
+  var fmtAcct  = acct ? acct.name : '—';
+  var fmtObs   = s.obs || '—';
+  var fmtCuota = (s.cuotas && s.cuotasNum>1) ? (s.cuotasNum+' cuotas') : 'Sin cuotas';
+  var hasSubs  = cat && cat.subcats && cat.subcats.length > 0;
 
-  // ── BOTTOM AREA: mic or edit picker ──
+  // ── BOTTOM AREA ──
   var bottomHtml = '';
 
   if(s.editMode === 'amount') {
-    // numpad
     var dispVal = s.editValue || '0';
-    bottomHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:4px 0">'
-      +'<div style="font-size:32px;font-weight:800;color:var(--text);letter-spacing:-1px;min-height:44px">'+sym+' '+dispVal+'</div>'
-      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:280px">'
+    bottomHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'
+      +'<div id="vqm-num-disp" style="font-size:30px;font-weight:800;color:var(--text);letter-spacing:-1px;min-height:40px">'+sym+' '+dispVal+'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:290px">'
       +['7','8','9','4','5','6','1','2','3'].map(function(k){
-        return '<button onclick="_vqmKey(\''+k+'\')" style="height:52px;border:none;border-radius:14px;background:var(--bg3);font-size:22px;font-weight:600;cursor:pointer;color:var(--text)">'+k+'</button>';
+        return '<button onclick="_vqmKey(\''+k+'\')" style="height:50px;border:none;border-radius:14px;background:var(--bg3);font-size:21px;font-weight:600;cursor:pointer;color:var(--text)">'+k+'</button>';
       }).join('')
-      +'<button onclick="_vqmKey(\',\')" style="height:52px;border:none;border-radius:14px;background:var(--bg3);font-size:20px;font-weight:600;cursor:pointer;color:var(--text)">,</button>'
-      +'<button onclick="_vqmKey(\'0\')" style="height:52px;border:none;border-radius:14px;background:var(--bg3);font-size:22px;font-weight:600;cursor:pointer;color:var(--text)">0</button>'
-      +'<button onclick="_vqmKey(\'del\')" style="height:52px;border:none;border-radius:14px;background:var(--bg3);font-size:18px;cursor:pointer;color:var(--text)">⌫</button>'
+      +'<button onclick="_vqmKey(\',\')" style="height:50px;border:none;border-radius:14px;background:var(--bg3);font-size:19px;font-weight:600;cursor:pointer;color:var(--text)">,</button>'
+      +'<button onclick="_vqmKey(\'0\')" style="height:50px;border:none;border-radius:14px;background:var(--bg3);font-size:21px;font-weight:600;cursor:pointer;color:var(--text)">0</button>'
+      +'<button onclick="_vqmKey(\'del\')" style="height:50px;border:none;border-radius:14px;background:var(--bg3);font-size:17px;cursor:pointer;color:var(--text)">⌫</button>'
       +'</div>'
-      +'<button onclick="_vqmEditDone()" style="width:100%;height:48px;background:var(--accent);color:white;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px">OK</button>'
+      +'<button onclick="_vqmEditDone()" style="width:100%;height:46px;background:var(--accent);color:white;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer">OK</button>'
       +'</div>';
 
   } else if(s.editMode === 'cat') {
     var cats = state.categories.filter(function(c){ return s.type==='income'?c.code==='INGR':c.code!=='INGR'; });
-    bottomHtml = '<div style="overflow-y:auto;max-height:200px;display:flex;flex-direction:column;gap:6px">'
+    bottomHtml = '<div style="overflow-y:auto;display:flex;flex-direction:column;gap:6px">'
       +cats.map(function(c){
         var sel = c.code===s.catCode;
-        return '<button onclick="_vqmSelectCat(\''+c.code+'\')" style="text-align:left;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font-size:14px;font-weight:600;background:'+(sel?'var(--accent)':'var(--bg3)')+';color:'+(sel?'white':'var(--text)')+'">'+c.code+' · '+(c.name||'')+'</button>';
+        return '<button onclick="_vqmSelectCat(\''+c.code+'\')" style="text-align:left;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font-size:14px;font-weight:600;background:'+(sel?'var(--accent)':'var(--bg3)')+';color:'+(sel?'white':'var(--text)')+'">'+c.code+(c.name?' · '+c.name:'')+'</button>';
       }).join('')
+      +'</div>';
+
+  } else if(s.editMode === 'subcat') {
+    var subs = (cat && cat.subcats) || [];
+    bottomHtml = '<div style="overflow-y:auto;display:flex;flex-direction:column;gap:6px">'
+      +subs.map(function(sub){
+        var sel = sub===s.subcat;
+        return '<button onclick="_vqmSelectSub(\''+sub.replace(/'/g,"\\'")+'\')" style="text-align:left;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font-size:14px;font-weight:600;background:'+(sel?'var(--accent)':'var(--bg3)')+';color:'+(sel?'white':'var(--text)')+'">'+sub+'</button>';
+      }).join('')
+      +'<button onclick="_vqmSelectSub(\'\')" style="text-align:left;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font-size:13px;color:var(--text3);background:var(--bg3)">Sin subcategoría</button>'
       +'</div>';
 
   } else if(s.editMode === 'account') {
     var accts = state.accounts.filter(function(a){ return a.id!=='__unassigned__'; });
-    bottomHtml = '<div style="overflow-y:auto;max-height:200px;display:flex;flex-direction:column;gap:6px">'
+    bottomHtml = '<div style="overflow-y:auto;display:flex;flex-direction:column;gap:6px">'
       +accts.map(function(a){
         var sel = a.id===s.accountId;
         return '<button onclick="_vqmSelectAcct(\''+a.id+'\')" style="text-align:left;border:none;border-radius:12px;padding:11px 14px;cursor:pointer;font-size:14px;font-weight:600;background:'+(sel?'var(--accent)':'var(--bg3)')+';color:'+(sel?'white':'var(--text)')+'">'+a.name+'</button>';
+      }).join('')
+      +'</div>';
+
+  } else if(s.editMode === 'cuotas') {
+    var cuotaOpts = [1,2,3,6,9,12,18,24];
+    bottomHtml = '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center">'
+      +cuotaOpts.map(function(n){
+        var sel = (n===1 && !s.cuotas) || (s.cuotas && s.cuotasNum===n);
+        return '<button onclick="_vqmSelectCuotas('+n+')" style="width:68px;height:54px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;background:'+(sel?'var(--accent)':'var(--bg3)')+';color:'+(sel?'white':'var(--text)')+'">'+
+          (n===1?'Sin':'x'+n)+'</button>';
       }).join('')
       +'</div>';
 
@@ -926,16 +949,17 @@ function _renderVoiceQuickModal() {
 
   } else {
     // mic area (default)
-    var micColor = s._listening ? 'var(--red)' : (s.filled ? 'var(--accent)' : 'var(--text3)');
-    var micAnim = s._listening ? 'vqm-pulse 1.5s ease-in-out infinite' : 'none';
+    var micColor  = s._listening ? 'var(--red)' : (s.filled ? 'var(--accent)' : 'var(--text3)');
+    var micAnim   = s._listening ? 'vqm-pulse 1.5s ease-in-out infinite' : 'none';
     var statusTxt = s._listening ? 'Escuchando... hablá ahora'
       : (s.filled ? 'Listo · tocá para volver a hablar' : 'Iniciando micrófono...');
     bottomHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:14px">'
+      +(s._listening ? '<button onclick="_vqmStopListening()" style="background:var(--bg3);border:none;border-radius:20px;padding:6px 18px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text2)">Listo ✓</button>' : '')
       +'<div id="vqm-mic-btn" onclick="_vqmStartListening()" style="width:88px;height:88px;border-radius:50%;background:'+micColor+';display:flex;align-items:center;justify-content:center;cursor:pointer;animation:'+micAnim+';transition:background 0.3s;flex-shrink:0">'
       +'<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" width="42" height="42"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>'
       +'</div>'
-      +'<div id="vqm-status" style="font-size:13px;color:var(--text3);text-align:center">'+statusTxt+'</div>'
-      +(s.transcript?'<div style="font-size:13px;color:var(--text2);font-style:italic;text-align:center;max-width:280px;background:var(--bg3);border-radius:12px;padding:8px 14px;line-height:1.4">&ldquo;'+s.transcript+'&rdquo;</div>':'')
+      +'<div id="vqm-status" style="font-size:13px;color:var(--text3);text-align:center;min-height:18px">'+statusTxt+'</div>'
+      +(s.transcript ? '<div style="font-size:13px;color:var(--text2);font-style:italic;text-align:center;max-width:280px;background:var(--bg3);border-radius:12px;padding:8px 14px;line-height:1.4">&ldquo;'+s.transcript+'&rdquo;</div>' : '')
       +'</div>';
   }
 
@@ -952,51 +976,61 @@ function _renderVoiceQuickModal() {
     +'</div>'
 
     // CHIPS — 40%
-    +'<div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:8px;flex-shrink:0">'
-    // Monto
+    +'<div style="padding:0 16px 10px;display:flex;flex-direction:column;gap:7px;flex-shrink:0">'
+
+    // Monto + Tipo
     +'<div style="display:flex;gap:8px">'
-    +'<div onclick="_vqmEdit(\'amount\')" style="flex:1;background:var(--bg3);border-radius:16px;padding:13px 16px;cursor:pointer">'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">Monto</div>'
-    +'<div style="font-size:24px;font-weight:800;color:'+(s.amount>0?(s.type==='income'?'var(--green)':'var(--red)'):'var(--text3)')+'">'+fmtAmt+'</div>'
+    +'<div onclick="_vqmEdit(\'amount\')" style="flex:1;background:var(--bg3);border-radius:16px;padding:12px 14px;cursor:pointer">'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:2px">Monto</div>'
+    +'<div style="font-size:22px;font-weight:800;color:'+(s.amount>0?(s.type==='income'?'var(--green)':'var(--red)'):'var(--text3)')+'">'+fmtAmt+'</div>'
     +'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
-    +'<button onclick="_vqmSetType(\'expense\')" style="border:none;border-radius:12px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;background:'+(s.type==='expense'?'var(--red)':'var(--bg3)')+';color:'+(s.type==='expense'?'white':'var(--text3)')+'">Gasto</button>'
-    +'<button onclick="_vqmSetType(\'income\')" style="border:none;border-radius:12px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;background:'+(s.type==='income'?'var(--green)':'var(--bg3)')+';color:'+(s.type==='income'?'white':'var(--text3)')+'">Ingreso</button>'
-    +'</div>'
-    +'</div>'
-    // Cat + Cuenta
-    +'<div style="display:flex;gap:8px">'
-    +'<div onclick="_vqmEdit(\'cat\')" style="flex:1;background:var(--bg3);border-radius:16px;padding:12px 14px;cursor:pointer">'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">Categoría</div>'
-    +'<div style="font-size:14px;font-weight:600;color:'+(s.catCode?'var(--text)':'var(--text3)')+'">'+fmtCat+'</div>'
-    +'</div>'
-    +'<div onclick="_vqmEdit(\'account\')" style="flex:1;background:var(--bg3);border-radius:16px;padding:12px 14px;cursor:pointer">'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">Cuenta</div>'
-    +'<div style="font-size:14px;font-weight:600;color:'+(acct?'var(--text)':'var(--text3)')+'">'+fmtAcct+'</div>'
-    +'</div>'
-    +'</div>'
-    // Obs
-    +'<div onclick="_vqmEdit(\'obs\')" style="background:var(--bg3);border-radius:16px;padding:12px 14px;cursor:pointer">'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:3px">Observación (opcional)</div>'
-    +'<div style="font-size:14px;color:'+(s.obs?'var(--text)':'var(--text3)')+'">'+fmtObs+'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">'
+    +'<button onclick="_vqmSetType(\'expense\')" style="border:none;border-radius:11px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;background:'+(s.type==='expense'?'var(--red)':'var(--bg3)')+';color:'+(s.type==='expense'?'white':'var(--text3)')+'">Gasto</button>'
+    +'<button onclick="_vqmSetType(\'income\')" style="border:none;border-radius:11px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;background:'+(s.type==='income'?'var(--green)':'var(--bg3)')+';color:'+(s.type==='income'?'white':'var(--text3)')+'">Ingreso</button>'
     +'</div>'
     +'</div>'
 
+    // Cat + Cuenta
+    +'<div style="display:flex;gap:7px">'
+    +'<div onclick="_vqmEdit(\'cat\')" style="flex:1;background:var(--bg3);border-radius:14px;padding:10px 12px;cursor:pointer">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Categoría</div>'
+    +'<div style="font-size:13px;font-weight:700;color:'+(s.catCode?'var(--text)':'var(--text3)')+'">'+fmtCat+'</div>'
+    +(fmtSub ? '<div style="font-size:11px;color:var(--text3);margin-top:1px" onclick="event.stopPropagation();_vqmEdit(\'subcat\')">'+fmtSub+' ›</div>' : (hasSubs ? '<div style="font-size:11px;color:var(--text3);margin-top:1px" onclick="event.stopPropagation();_vqmEdit(\'subcat\')">+ sub</div>' : ''))
+    +'</div>'
+    +'<div onclick="_vqmEdit(\'account\')" style="flex:1;background:var(--bg3);border-radius:14px;padding:10px 12px;cursor:pointer">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Cuenta</div>'
+    +'<div style="font-size:13px;font-weight:700;color:'+(acct?'var(--text)':'var(--text3)')+'">'+fmtAcct+'</div>'
+    +'</div>'
+    +'</div>'
+
+    // Cuotas + Obs
+    +'<div style="display:flex;gap:7px">'
+    +'<div onclick="_vqmEdit(\'cuotas\')" style="flex:0 0 auto;background:var(--bg3);border-radius:14px;padding:10px 14px;cursor:pointer">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Cuotas</div>'
+    +'<div style="font-size:13px;font-weight:700;color:'+(s.cuotas&&s.cuotasNum>1?'var(--accent)':'var(--text3)')+'">'+fmtCuota+'</div>'
+    +'</div>'
+    +'<div onclick="_vqmEdit(\'obs\')" style="flex:1;background:var(--bg3);border-radius:14px;padding:10px 12px;cursor:pointer;min-width:0">'
+    +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">Observación</div>'
+    +'<div style="font-size:13px;color:'+(s.obs?'var(--text)':'var(--text3)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+fmtObs+'</div>'
+    +'</div>'
+    +'</div>'
+
+    +'</div>'
+
     // MIC / EDIT AREA — 60%
-    +'<div style="flex:1;display:flex;flex-direction:column;align-items:stretch;justify-content:center;padding:10px 20px 12px;gap:10px;min-height:220px;overflow-y:auto">'
+    +'<div style="flex:1;display:flex;flex-direction:column;align-items:stretch;justify-content:center;padding:8px 20px 10px;gap:10px;min-height:200px;overflow-y:auto">'
     +bottomHtml
     +'</div>'
 
     // SAVE BUTTON
-    +'<div style="padding:12px 16px;padding-bottom:max(16px,env(safe-area-inset-bottom));flex-shrink:0">'
-    +'<button onclick="_vqmSave()" style="width:100%;height:58px;background:var(--accent);color:white;border:none;border-radius:16px;font-size:18px;font-weight:700;cursor:pointer;opacity:'+(s.amount>0?'1':'0.42')+'">'
+    +'<div style="padding:10px 16px;padding-bottom:max(14px,env(safe-area-inset-bottom));flex-shrink:0">'
+    +'<button onclick="_vqmSave()" style="width:100%;height:56px;background:var(--accent);color:white;border:none;border-radius:16px;font-size:18px;font-weight:700;cursor:pointer;opacity:'+(s.amount>0?'1':'0.42')+'">'
     +'Guardar'
     +'</button>'
     +'</div>'
 
     +'</div></div>';
 
-  // Si editMode=obs, hacer foco en el textarea
   if(s.editMode === 'obs') {
     var ta = document.getElementById('vqm-obs-input');
     if(ta) setTimeout(function(){ ta.focus(); }, 80);
@@ -1010,50 +1044,76 @@ function _vqmStartListening() {
   if(_vqmRec) { try { _vqmRec.abort(); } catch(e){} _vqmRec = null; }
   _vqm.editMode = null;
   _vqm._listening = true;
+  _vqm._accumulated = '';
   _renderVoiceQuickModal();
 
-  var rec = new SR();
-  _vqmRec = rec;
-  rec.lang = 'es-AR';
-  rec.continuous = false;
-  rec.interimResults = true;
-  rec.maxAlternatives = 1;
+  function _startOne() {
+    if(!_vqm || !_vqm._listening) return;
+    var SR2 = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR2) return;
+    var r = new SR2();
+    _vqmRec = r;
+    r.lang = 'es-AR';
+    r.continuous = false;   // false = sin eco en Android
+    r.interimResults = true;
+    r.maxAlternatives = 1;
 
-  rec.onresult = function(e) {
-    var txt = Array.from(e.results).map(function(r){ return r[0].transcript; }).join('');
-    var statusEl = document.getElementById('vqm-status');
-    if(statusEl) statusEl.textContent = '"' + txt + '"';
-    if(e.results[e.results.length-1].isFinal) {
-      _vqm.transcript = txt;
-      _vqm._listening = false;
-      var statusEl2 = document.getElementById('vqm-status');
-      if(statusEl2) statusEl2.textContent = 'Procesando...';
-      var micBtn = document.getElementById('vqm-mic-btn');
-      if(micBtn) { micBtn.style.animation = 'none'; micBtn.style.background = 'var(--text3)'; }
-      window._voiceSession = { text: txt };
-      setTimeout(function(){ try { parseVoiceInput(txt); } catch(ex){ console.error('[VQM]', ex); } }, 200);
+    r.onresult = function(e) {
+      var fin = '', intr = '';
+      for(var i = e.resultIndex; i < e.results.length; i++) {
+        if(e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
+        else intr += e.results[i][0].transcript;
+      }
+      if(fin) _vqm._accumulated = (_vqm._accumulated + ' ' + fin).trim();
+      var display = (_vqm._accumulated + (intr?' '+intr:'')).trim();
+      var statusEl = document.getElementById('vqm-status');
+      if(statusEl) statusEl.textContent = display ? ('"'+display+'"') : 'Escuchando...';
+    };
+
+    r.onend = function() {
+      _vqmRec = null;
+      if(!_vqm || !_vqm._listening) return;
+      // Si acumulamos algo, reiniciamos para seguir escuchando hasta que el usuario toque "Listo"
+      setTimeout(_startOne, 80);
+    };
+
+    r.onerror = function(ev) {
+      _vqmRec = null;
+      if(!_vqm) return;
+      if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        _vqm._listening = false;
+        var statusEl = document.getElementById('vqm-status');
+        if(statusEl) statusEl.textContent = 'Permiso de micrófono denegado';
+        return;
+      }
+      // no-speech u otros: reintentar
+      setTimeout(function(){ if(_vqm && _vqm._listening) _startOne(); }, 400);
+    };
+
+    try { r.start(); } catch(e) {
+      _vqmRec = null;
+      setTimeout(function(){ if(_vqm && _vqm._listening) _startOne(); }, 600);
     }
-  };
+  }
+  _startOne();
+}
 
-  rec.onerror = function(e) {
-    if(!_vqm) return;
-    _vqm._listening = false;
-    var statusEl = document.getElementById('vqm-status');
-    if(statusEl) statusEl.textContent = (e.error==='no-speech') ? 'No te escuché. Tocá el micrófono para reintentar.' : ('Error: ' + e.error);
-    var micBtn = document.getElementById('vqm-mic-btn');
-    if(micBtn) { micBtn.style.animation = 'none'; micBtn.style.background = 'var(--text3)'; }
-  };
-
-  rec.onend = function() {
-    _vqmRec = null;
-    if(_vqm && _vqm._listening) {
-      _vqm._listening = false;
-      var micBtn = document.getElementById('vqm-mic-btn');
-      if(micBtn) { micBtn.style.animation = 'none'; micBtn.style.background = s && s.filled ? 'var(--accent)' : 'var(--text3)'; }
-    }
-  };
-
-  try { rec.start(); } catch(e) { showToast('No se pudo iniciar el micrófono'); _vqm._listening = false; _renderVoiceQuickModal(); }
+function _vqmStopListening() {
+  if(!_vqm) return;
+  _vqm._listening = false;
+  if(_vqmRec) { try { _vqmRec.abort(); } catch(e){} _vqmRec = null; }
+  var txt = (_vqm._accumulated || '').trim();
+  if(!txt) {
+    _renderVoiceQuickModal();
+    return;
+  }
+  _vqm.transcript = txt;
+  var statusEl = document.getElementById('vqm-status');
+  if(statusEl) statusEl.textContent = 'Procesando...';
+  var micBtn = document.getElementById('vqm-mic-btn');
+  if(micBtn) { micBtn.style.animation = 'none'; micBtn.style.background = 'var(--text3)'; }
+  window._voiceSession = { text: txt };
+  setTimeout(function(){ try { parseVoiceInput(txt); } catch(ex){ console.error('[VQM]', ex); } }, 200);
 }
 
 function _fillVoiceQuickModal(data) {
@@ -1147,7 +1207,14 @@ function _vqmSelectCat(code) {
   if(!_vqm) return;
   _vqm.catCode = code;
   var cat = state.categories.find(function(c){ return c.code===code; });
-  _vqm.subcat = (cat && cat.subcats && cat.subcats.length) ? cat.subcats[0] : '';
+  _vqm.subcat = '';
+  _vqm.editMode = null;
+  _renderVoiceQuickModal();
+}
+
+function _vqmSelectSub(sub) {
+  if(!_vqm) return;
+  _vqm.subcat = sub;
   _vqm.editMode = null;
   _renderVoiceQuickModal();
 }
@@ -1157,6 +1224,14 @@ function _vqmSelectAcct(id) {
   _vqm.accountId = id;
   var a = state.accounts.find(function(x){ return x.id===id; });
   if(a) _vqm.currency = a.currency || 'ARS';
+  _vqm.editMode = null;
+  _renderVoiceQuickModal();
+}
+
+function _vqmSelectCuotas(n) {
+  if(!_vqm) return;
+  _vqm.cuotas = n > 1;
+  _vqm.cuotasNum = n;
   _vqm.editMode = null;
   _renderVoiceQuickModal();
 }
@@ -6907,6 +6982,69 @@ window.closeModal=function(){
     document.addEventListener('DOMContentLoaded',_hook);
   } else { _hook(); }
   setTimeout(_hook,1500);
+})();
+</script>
+<script>
+// Fix VQM-A: Restaurar FAB onclick + override final parseVoiceInput para modal de voz
+(function(){
+  // 1. Restaurar FAB onclick después de que Fix 16 lo haya removido (~400ms delay)
+  //    Clonar el elemento elimina todos los event listeners
+  function _restoreFab(){
+    var fab=document.getElementById('nav-fab');
+    if(!fab){ setTimeout(_restoreFab,400); return; }
+    var clone=fab.cloneNode(true);
+    clone.setAttribute('onclick','triggerFabVoice()');
+    clone.style.touchAction='';
+    clone.style.userSelect='';
+    clone.style.webkitUserSelect='';
+    clone.style.color='';
+    if(fab.parentNode) fab.parentNode.replaceChild(clone,fab);
+  }
+  setTimeout(_restoreFab, 900);
+
+  // 2. Override FINAL de parseVoiceInput — si el VQM está abierto, intercepta openAddModal
+  var _origFinal=window.parseVoiceInput;
+  window.parseVoiceInput=function(text){
+    if(window._voiceQuickModal && typeof _fillVoiceQuickModal==='function'){
+      var _origOAM=window.openAddModal;
+      window.openAddModal=function(p){
+        window.openAddModal=_origOAM;
+        if(p && typeof p.obs==='string') p.obs=_vqmCleanObs(p.obs,p);
+        _fillVoiceQuickModal(p);
+      };
+      try{ _origFinal.call(this,text); }catch(e){ window.openAddModal=_origOAM; console.error('[VQM]',e); }
+    } else {
+      _origFinal.call(this,text);
+    }
+  };
+
+  // 3. Limpieza de obs para VQM — elimina todo lo que ya completó otros campos
+  window._vqmCleanObs=function(obs,p){
+    if(!obs) return '';
+    var s=obs;
+    var esc=function(x){return (x||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');};
+    var nm=function(x){return (x||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');};
+    // números y montos
+    s=s.replace(/\$\s*[\d][\d\s.,]*/gi,' ');
+    s=s.replace(/\b\d[\d.,]*\s*(millones?|mil|k|m)?\b/gi,' ');
+    // verbos de acción
+    s=s.replace(/\b(gast[eéoó]|pagu[eé]|pag[oó]|compr[eéoó]|cobr[eéioó]?|recib[ií]|ingres[eéoó]|me\s*pagaron|cost[oóeé]|sali[oó]|sal[ií])\b/gi,' ');
+    // moneda y medio de pago
+    s=s.replace(/\b(pesos?|d[oó]lares?|dolar|euros?|ars|usd|eur|verde|tarjeta|efectivo|cash|cr[eé]dito|d[eé]bito|cuotas?)\b/gi,' ');
+    // nombre y banco de la cuenta detectada
+    var acct=state&&state.accounts&&state.accounts.find(function(a){return a.id===(p&&p.accountId);});
+    if(acct){
+      if(acct.name) s=s.replace(new RegExp(esc(nm(acct.name)),'gi'),' ');
+      if(acct.bank) s=s.replace(new RegExp('\\b'+esc(nm(acct.bank))+'\\b','gi'),' ');
+    }
+    // marcas de tarjeta y bancos comunes
+    s=s.replace(/\b(mastercard|master\s*card|visa|naranja\s*x?|patagonia|supervielle|supv|galicia|santander|bbva|icbc|hsbc|macro|nacion|provincia|uala|brubank|mercado\s*pago|personal\s*pay|modo|banco|cuenta)\b/gi,' ');
+    // preposiciones que quedan sueltas
+    s=s.replace(/\b(con|en|por|de|del|al|la|el|un|una|y)\b/gi,' ');
+    s=s.replace(/\s{2,}/g,' ').trim();
+    if(s.length<3) return '';
+    return s.charAt(0).toUpperCase()+s.slice(1);
+  };
 })();
 </script>
 <script>
