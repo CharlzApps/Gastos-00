@@ -644,7 +644,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.78';
+const APP_VERSION = 'v1.80';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1671,6 +1671,8 @@ function openWizardModal() {
     subcat: '',
     accountId: getDefaultAccountId(),
     cuotas: 1,
+    acctSubStep: 'type',   // 'type' | 'bank' | 'instrument'
+    acctBank: '',          // banco seleccionado en sub-paso
   };
   renderWizard();
 }
@@ -1719,38 +1721,87 @@ function renderWizard() {
     titleText = 'Subcategoría';
     const cat = state.categories.find(c=>c.code===s.catCode);
     const subs = cat?.subcats || [];
-    if(!subs.length) { wizardState.step=4; renderWizard(); return; }
-    bodyHtml = `<div style="display:flex;flex-direction:column;gap:8px">
+    if(!subs.length) { wizardState.step=4; wizardState.acctSubStep='type'; renderWizard(); return; }
+    bodyHtml = `<div class="wizard-grid">
       ${subs.map(sub=>`
-        <div class="wizard-sub-btn" onclick="wizardSelectSub('${sub}')">${sub}</div>
+        <div class="wizard-cat-btn" onclick="wizardSelectSub('${sub.replace(/'/g,"\\'")}')">
+          <div style="font-size:15px;font-weight:600;color:var(--text)">${sub}</div>
+        </div>
       `).join('')}
-      <div class="wizard-sub-btn" style="color:var(--text3)" onclick="wizardSelectSub('')">Sin subcategoría</div>
+      <div class="wizard-cat-btn" style="color:var(--text3)" onclick="wizardSelectSub('')">
+        <div style="font-size:14px;font-weight:500">Sin subcategoría</div>
+      </div>
     </div>`;
   } else if(s.step === 4) {
-    titleText = 'Cuenta';
-    const cat = state.categories.find(c=>c.code===s.catCode);
-    const currency = (state.accounts.find(a=>a.id===s.accountId)?.currency)||'ARS';
-    const sym = currency==='USD'?'U$D':currency==='EUR'?'€':'$';
-    bodyHtml = `
-      <div class="wizard-summary">
-        <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${s.amount}</span></div>
-        <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
-      </div>`;
-    const sortedAccounts = [...state.accounts].filter(a=>a.id!=='__unassigned__').sort((a,b) => {
-      const countA = state.txs.filter(t=>t.accountId===a.id).length;
-      const countB = state.txs.filter(t=>t.accountId===b.id).length;
-      return countB - countA;
-    });
-    bodyHtml += sortedAccounts.map(a=>{
-        const inc = state.txs.filter(t=>t.type==='income'&&t.accountId===a.id).reduce((s,t)=>s+t.amount,0);
-        const exp = state.txs.filter(t=>t.type==='expense'&&t.accountId===a.id).reduce((s,t)=>s+t.amount,0);
-        const bal = inc - exp;
-        return `<div class="wizard-acct-btn ${a.id===s.accountId?'style="border-color:var(--accent)"':''}" onclick="wizardSelectAcct('${a.id}')">
-          ${_acctIconDiv(a,24)}
-          <div class="wizard-acct-name">${a.name}${state.defaultAccountId===a.id?' <span style="font-size:10px;color:var(--text3)">(por defecto)</span>':''}</div>
-          <div class="wizard-acct-bal">${fmtAmt(Math.abs(bal))} ${a.currency}</div>
+    // ── SUB-PASO: tipo de cuenta ──────────────────────────────────
+    if(s.acctSubStep === 'type') {
+      titleText = 'Cuenta';
+      const currency = (state.accounts.find(a=>a.id===s.accountId)?.currency)||'ARS';
+      const sym = currency==='USD'?'U$D':currency==='EUR'?'€':'$';
+      const hasBanks = state.accounts.some(a=>!['cash','wallet'].includes(a.type));
+      bodyHtml = `
+        <div class="wizard-summary">
+          <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${s.amount}</span></div>
+          <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
+        </div>
+        <div class="wizard-grid">
+          ${state.accounts.some(a=>a.type==='cash') ? `
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('cash')" style="grid-column:1/-1">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">Efectivo</div>
+          </div>` : ''}
+          ${state.accounts.some(a=>a.type==='wallet') ? `
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('wallet')" style="grid-column:1/-1">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${state.accounts.find(a=>a.type==='wallet')?.name||'Billetera'}</div>
+          </div>` : ''}
+          ${hasBanks ? `
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="grid-column:1/-1">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">Banco →</div>
+          </div>` : ''}
         </div>`;
-      }).join('');
+
+    // ── SUB-PASO: elegir banco ────────────────────────────────────
+    } else if(s.acctSubStep === 'bank') {
+      titleText = 'Banco';
+      // Todas las cuentas que no son cash ni wallet
+      const bancoAccts = state.accounts.filter(a=>!['cash','wallet'].includes(a.type));
+      // Agrupar por bank si está definido, sino usar nombre de cuenta
+      const banks = [...new Set(bancoAccts.map(a=>a.bank||a.name))].sort();
+      bodyHtml = `<div class="wizard-grid">
+        ${banks.map(b=>`
+          <div class="wizard-cat-btn" onclick="wizardAcctPickBank('${b.replace(/'/g,"\\'")}')">
+            <div style="font-size:16px;font-weight:700;color:var(--text)">${b}</div>
+          </div>`).join('')}
+      </div>`;
+
+    // ── SUB-PASO: elegir instrumento ──────────────────────────────
+    } else if(s.acctSubStep === 'instrument') {
+      titleText = s.acctBank;
+      // Función auxiliar para matchear cuenta por bank o nombre
+      const matchBank = a => (a.bank && a.bank===s.acctBank) || (!a.bank && a.name===s.acctBank);
+      const cuentaAcct = state.accounts.find(a=>!['cash','wallet','credit'].includes(a.type) && matchBank(a));
+      const visaAcct   = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Visa') && matchBank(a));
+      const masterAcct = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Master'||a.cardBrand==='Mastercard') && matchBank(a));
+      // Si ninguna de las 3 categorías matchea, mostrar la cuenta directamente
+      const otherAcct  = (!cuentaAcct && !visaAcct && !masterAcct)
+        ? state.accounts.find(a=>matchBank(a)) : null;
+      bodyHtml = `<div class="wizard-grid">
+        ${cuentaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${cuentaAcct.id}')" style="grid-column:1/-1">
+          <div style="font-size:18px;font-weight:700;color:var(--text)">Cuenta $</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${cuentaAcct.name}</div>
+        </div>` : ''}
+        ${visaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${visaAcct.id}')">
+          <div style="font-size:18px;font-weight:700;color:var(--text)">Visa</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${visaAcct.name}</div>
+        </div>` : ''}
+        ${masterAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${masterAcct.id}')">
+          <div style="font-size:18px;font-weight:700;color:var(--text)">Mastercard</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">${masterAcct.name}</div>
+        </div>` : ''}
+        ${otherAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${otherAcct.id}')" style="grid-column:1/-1">
+          <div style="font-size:18px;font-weight:700;color:var(--text)">${otherAcct.name}</div>
+        </div>` : ''}
+      </div>`;
+    }
   } else if(s.step === 5) {
     titleText = 'Cuotas';
     const cat = state.categories.find(c=>c.code===s.catCode);
@@ -1824,7 +1875,33 @@ function wizardNext() {
 }
 
 function wizardBack() {
-  if(wizardState.step > 1) { wizardState.step--; renderWizard(); }
+  const s = wizardState;
+  if(s.step === 4) {
+    if(s.acctSubStep === 'instrument') { s.acctSubStep = 'bank'; renderWizard(); return; }
+    if(s.acctSubStep === 'bank')       { s.acctSubStep = 'type'; renderWizard(); return; }
+    // acctSubStep === 'type' → back to step 3
+  }
+  if(s.step > 1) { s.step--; s.acctSubStep = 'type'; renderWizard(); }
+}
+
+function wizardAcctPickType(kind) {
+  const s = wizardState;
+  if(kind === 'bank') {
+    s.acctSubStep = 'bank';
+    renderWizard();
+  } else if(kind === 'cash') {
+    const acct = state.accounts.find(a=>a.type==='cash');
+    if(acct) wizardSelectAcct(acct.id);
+  } else if(kind === 'wallet') {
+    const acct = state.accounts.find(a=>a.type==='wallet');
+    if(acct) wizardSelectAcct(acct.id);
+  }
+}
+
+function wizardAcctPickBank(bank) {
+  wizardState.acctBank = bank;
+  wizardState.acctSubStep = 'instrument';
+  renderWizard();
 }
 
 function wizardSelectCat(code) {
@@ -1832,19 +1909,22 @@ function wizardSelectCat(code) {
   const cat = state.categories.find(c=>c.code===code);
   wizardState.subcat = cat?.subcats?.[0] || '';
   wizardState.step = 3;
+  wizardState.acctSubStep = 'type';
   renderWizard();
 }
 
 function wizardSelectSub(sub) {
   wizardState.subcat = sub;
   wizardState.step = 4;
+  wizardState.acctSubStep = 'type';
   renderWizard();
 }
 
 function wizardSelectAcct(id) {
   wizardState.accountId = id;
   const acct = state.accounts.find(a=>a.id===id);
-  if(wizardState.type === 'expense' && acct?.type !== 'cash') {
+  // Ir a cuotas solo si es tarjeta de crédito y es un gasto
+  if(wizardState.type === 'expense' && acct?.type === 'credit') {
     wizardState.step = 5;
     renderWizard();
   } else {
