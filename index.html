@@ -657,7 +657,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.83';
+const APP_VERSION = 'v1.84';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4436,6 +4436,18 @@ function openBankModal(id) {
         <input type="text" id="bank-name" value="${b?.name||''}" placeholder="Ej: Galicia, Santander..."/>
       </div>
       <div class="field" style="margin-bottom:14px">
+        <label>Logo (URL de imagen)</label>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+          <div id="bank-logo-preview" style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3)">
+            ${b?.logoUrl ? `<img src="${b.logoUrl}" width="48" height="48" style="object-fit:contain;border-radius:50%" onerror="this.parentElement.innerHTML='Sin logo'">` : 'Sin logo'}
+          </div>
+          <div style="flex:1">
+            <input type="url" id="bank-logo-url" value="${b?.logoUrl||''}" placeholder="https://..." oninput="previewBankLogo(this.value)" style="font-size:12px"/>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Pegá la URL de cualquier imagen PNG/SVG del logo</div>
+          </div>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
         <label>Color</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${colorPicker}</div>
         <input type="hidden" id="bank-color" value="${b?.color||COLORS[0]}"/>
@@ -4462,18 +4474,28 @@ function _bankBg(color) {
   } catch(e) { return 'var(--bg4)'; }
 }
 
+function previewBankLogo(url) {
+  const prev = document.getElementById('bank-logo-preview');
+  if(!prev) return;
+  if(url) {
+    prev.innerHTML = `<img src="${url}" width="48" height="48" style="object-fit:contain;border-radius:50%" onerror="this.parentElement.innerHTML='<span style=font-size:11px;color:var(--red)>Error</span>'">`;
+  } else {
+    prev.innerHTML = '<span style="font-size:11px;color:var(--text3)">Sin logo</span>';
+  }
+}
+
 function saveBank(id) {
   const name = document.getElementById('bank-name').value.trim();
   if(!name) { showToast('Ingresá un nombre'); return; }
   const color = document.getElementById('bank-color').value || '#444444';
   const bg = _bankBg(color);
+  const logoUrl = (document.getElementById('bank-logo-url')?.value || '').trim();
   if(!state.banks) state.banks = [];
   if(id) {
     const b = state.banks.find(b=>b.id===id);
-    if(b) Object.assign(b, { name, color, bg });
-    // Actualizar cuentas que referencian el nombre viejo si cambió
+    if(b) Object.assign(b, { name, color, bg, logoUrl });
   } else {
-    state.banks.push({ id:'b'+Date.now(), name, color, bg });
+    state.banks.push({ id:'b'+Date.now(), name, color, bg, logoUrl });
   }
   saveState(); closeModal(); renderConfig();
   showToast(id ? 'Banco actualizado' : 'Banco creado');
@@ -4558,15 +4580,17 @@ function _bankLogoCircle(bank, px) {
   px = px || 32;
   var ini = bank.name.substring(0,2).toUpperCase();
   var fs  = Math.round(px * 0.36);
-  var fallback = 'this.style.display=\'none\';this.nextSibling.style.display=\'flex\'';
-  if(bank.domain) {
-    var url = 'https://logo.clearbit.com/' + bank.domain;
-    return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">'
-      +'<img src="'+url+'" width="'+px+'" height="'+px+'" style="object-fit:contain;border-radius:50%" onerror="'+fallback+'">'
-      +'<span style="display:none;width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:'+bank.color+'">'+ini+'</span>'
-      +'</div>';
+  var bgStyle = 'background:' + (bank.bg||'var(--bg4)');
+  var fallbackSpan = '<span style="display:none;width:'+px+'px;height:'+px+'px;border-radius:50%;'+bgStyle+';align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:'+(bank.color||'var(--text2)')+'">'+ini+'</span>';
+  var imgUrl = bank.logoUrl || '';
+  if(imgUrl) {
+    var onErr = 'this.style.display=\'none\';this.nextSibling.style.display=\'flex\'';
+    return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;'+bgStyle+';overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">'
+      +'<img src="'+imgUrl+'" width="'+px+'" height="'+px+'" style="object-fit:contain;border-radius:50%;padding:2px" onerror="'+onErr+'">'
+      +fallbackSpan+'</div>';
   }
-  return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:'+fs+'px;font-weight:700;color:'+bank.color+'">'+ini+'</div>';
+  // Sin logo: solo iniciales
+  return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;'+bgStyle+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:'+fs+'px;font-weight:700;color:'+(bank.color||'var(--text2)')+'">'+ini+'</div>';
 }
 
 function _acctLogoDot(a, px) {
