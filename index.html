@@ -468,6 +468,19 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
           </div>
         </div>
 
+        <!-- Bancos -->
+        <div class="cfg-section-wrap" id="cfgsec-banks">
+          <div class="cfg-section-header" onclick="toggleCfgSection('banks')">
+            <div class="cfg-section-icon" style="background:rgba(0,61,165,0.1);color:#003DA5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg></div>
+            <div class="cfg-section-title">Bancos</div>
+            <div class="cfg-section-chevron" id="chev-banks">›</div>
+          </div>
+          <div class="cfg-section-body" id="cfgbody-banks" style="display:none">
+            <div id="banks-config-list"></div>
+            <button class="add-account-btn" style="margin-top:8px" onclick="openBankModal(null)">+ Nuevo banco</button>
+          </div>
+        </div>
+
         <!-- Categorías -->
         <div class="cfg-section-wrap" id="cfgsec-categories">
           <div class="cfg-section-header" onclick="toggleCfgSection('categories')">
@@ -644,7 +657,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.80';
+const APP_VERSION = 'v1.83';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -659,6 +672,18 @@ function defaultState() {
       { id:'a3', name:'Visa Naranja X', type:'credit', color:'#444444', currency:'ARS' },
       { id:'a4', name:'Mercado Pago', type:'wallet', color:'#2060c0', currency:'ARS' },
       { id:'a5', name:'Uala', type:'wallet', color:'#555555', currency:'ARS' },
+    ],
+    banks: [
+      { id:'b1',  name:'Galicia',      color:'#003DA5', bg:'#E8EFFF',             domain:'galicia.com.ar' },
+      { id:'b2',  name:'Santander',    color:'#EC0000', bg:'#FFE8E8',             domain:'santander.com.ar' },
+      { id:'b3',  name:'Nación',       color:'#003087', bg:'#E8F0FF',             domain:'bna.com.ar' },
+      { id:'b4',  name:'Provincia',    color:'#003087', bg:'#E8F0FF',             domain:'bapro.com.ar' },
+      { id:'b5',  name:'BBVA',         color:'#004A97', bg:'#E8EFFF',             domain:'bbva.com.ar' },
+      { id:'b6',  name:'Macro',        color:'#1B7B2B', bg:'#E8F8E8',             domain:'macro.com.ar' },
+      { id:'b7',  name:'HSBC',         color:'#CC0000', bg:'#FFE8E8',             domain:'hsbc.com.ar' },
+      { id:'b8',  name:'Patagonia',    color:'#4a3aaa', bg:'rgba(83,74,183,0.13)',domain:'bancopatagonia.com.ar' },
+      { id:'b9',  name:'Supervielle',  color:'#1a7a4a', bg:'rgba(26,122,74,0.13)',domain:'supervielle.com.ar' },
+      { id:'b10', name:'Credicoop',    color:'#1B7B2B', bg:'#E8F8E8',             domain:'banccredicoop.coop' },
     ],
     categories: [
       { code:'AUTO', emoji:'🚗', color:'#555555', subcats:['Nafta','Seguro','Patente','Lavado','Reparación','Estacionamiento'] },
@@ -702,7 +727,12 @@ function defaultState() {
 function loadState() {
   try {
     const s = localStorage.getItem('gastosAppV1');
-    return s ? JSON.parse(s) : defaultState();
+    const loaded = s ? JSON.parse(s) : defaultState();
+    // Migración: agregar banks si no existe
+    if(!loaded.banks) {
+      loaded.banks = defaultState().banks;
+    }
+    return loaded;
   } catch(e) { return defaultState(); }
 }
 function saveState() { try { localStorage.setItem('gastosAppV1', JSON.stringify(state)); } catch(e){} }
@@ -1722,14 +1752,21 @@ function renderWizard() {
     const cat = state.categories.find(c=>c.code===s.catCode);
     const subs = cat?.subcats || [];
     if(!subs.length) { wizardState.step=4; wizardState.acctSubStep='type'; renderWizard(); return; }
+    const catColor = cat?.color || 'var(--text3)';
     bodyHtml = `<div class="wizard-grid">
       ${subs.map(sub=>`
         <div class="wizard-cat-btn" onclick="wizardSelectSub('${sub.replace(/'/g,"\\'")}')">
-          <div style="font-size:15px;font-weight:600;color:var(--text)">${sub}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${catColor}"></div>
+          </div>
+          <div class="wizard-cat-name">${sub}</div>
         </div>
       `).join('')}
-      <div class="wizard-cat-btn" style="color:var(--text3)" onclick="wizardSelectSub('')">
-        <div style="font-size:14px;font-weight:500">Sin subcategoría</div>
+      <div class="wizard-cat-btn" onclick="wizardSelectSub('')">
+        <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--text3)"></div>
+        </div>
+        <div class="wizard-cat-name" style="color:var(--text3)">Sin subcategoría</div>
       </div>
     </div>`;
   } else if(s.step === 4) {
@@ -1739,66 +1776,76 @@ function renderWizard() {
       const currency = (state.accounts.find(a=>a.id===s.accountId)?.currency)||'ARS';
       const sym = currency==='USD'?'U$D':currency==='EUR'?'€':'$';
       const hasBanks = state.accounts.some(a=>!['cash','wallet'].includes(a.type));
+      const cashAcct   = state.accounts.find(a=>a.type==='cash');
+      const walletAccts = state.accounts.filter(a=>a.type==='wallet');
+      const bankIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>`;
       bodyHtml = `
         <div class="wizard-summary">
           <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${s.amount}</span></div>
           <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
         </div>
         <div class="wizard-grid">
-          ${state.accounts.some(a=>a.type==='cash') ? `
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('cash')" style="grid-column:1/-1">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">Efectivo</div>
+          ${cashAcct ? `
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('cash')">
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
+            <div class="wizard-cat-name">Efectivo</div>
           </div>` : ''}
-          ${state.accounts.some(a=>a.type==='wallet') ? `
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('wallet')" style="grid-column:1/-1">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">${state.accounts.find(a=>a.type==='wallet')?.name||'Billetera'}</div>
-          </div>` : ''}
+          ${walletAccts.map(wa=>`
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('wallet','${wa.id}')">
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(wa,32)}</div>
+            <div class="wizard-cat-name">${wa.name}</div>
+          </div>`).join('')}
           ${hasBanks ? `
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="grid-column:1/-1">
-            <div style="font-size:18px;font-weight:700;color:var(--text)">Banco →</div>
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="${(cashAcct?1:0)+(walletAccts.length)===1?'grid-column:1/-1':''}">
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${bankIconSvg}</div>
+            <div class="wizard-cat-name">Banco</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
           </div>` : ''}
         </div>`;
 
     // ── SUB-PASO: elegir banco ────────────────────────────────────
     } else if(s.acctSubStep === 'bank') {
       titleText = 'Banco';
-      // Todas las cuentas que no son cash ni wallet
       const bancoAccts = state.accounts.filter(a=>!['cash','wallet'].includes(a.type));
-      // Agrupar por bank si está definido, sino usar nombre de cuenta
       const banks = [...new Set(bancoAccts.map(a=>a.bank||a.name))].sort();
       bodyHtml = `<div class="wizard-grid">
-        ${banks.map(b=>`
-          <div class="wizard-cat-btn" onclick="wizardAcctPickBank('${b.replace(/'/g,"\\'")}')">
-            <div style="font-size:16px;font-weight:700;color:var(--text)">${b}</div>
-          </div>`).join('')}
+        ${banks.map(b=>{
+          const fakeAcct = { name: b, bank: b, type: 'account' };
+          return `<div class="wizard-cat-btn" onclick="wizardAcctPickBank('${b.replace(/'/g,"\\'")}')">
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(fakeAcct, 32)}</div>
+            <div class="wizard-cat-name">${b}</div>
+          </div>`;
+        }).join('')}
       </div>`;
 
     // ── SUB-PASO: elegir instrumento ──────────────────────────────
     } else if(s.acctSubStep === 'instrument') {
       titleText = s.acctBank;
-      // Función auxiliar para matchear cuenta por bank o nombre
       const matchBank = a => (a.bank && a.bank===s.acctBank) || (!a.bank && a.name===s.acctBank);
       const cuentaAcct = state.accounts.find(a=>!['cash','wallet','credit'].includes(a.type) && matchBank(a));
-      const visaAcct   = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Visa') && matchBank(a));
+      const visaAcct   = state.accounts.find(a=>a.type==='credit' && a.cardBrand==='Visa' && matchBank(a));
       const masterAcct = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Master'||a.cardBrand==='Mastercard') && matchBank(a));
-      // Si ninguna de las 3 categorías matchea, mostrar la cuenta directamente
-      const otherAcct  = (!cuentaAcct && !visaAcct && !masterAcct)
-        ? state.accounts.find(a=>matchBank(a)) : null;
+      const otherAcct  = (!cuentaAcct && !visaAcct && !masterAcct) ? state.accounts.find(a=>matchBank(a)) : null;
+      const debitIconSvg = ACCT_ICONS.account.svg.replace('width="17" height="17"','width="26" height="26"');
       bodyHtml = `<div class="wizard-grid">
-        ${cuentaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${cuentaAcct.id}')" style="grid-column:1/-1">
-          <div style="font-size:18px;font-weight:700;color:var(--text)">Cuenta $</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">${cuentaAcct.name}</div>
+        ${cuentaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${cuentaAcct.id}')" style="${!visaAcct&&!masterAcct?'grid-column:1/-1':''}">
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${debitIconSvg}</div>
+          <div class="wizard-cat-name">Cuenta $</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${cuentaAcct.name}</div>
         </div>` : ''}
         ${visaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${visaAcct.id}')">
-          <div style="font-size:18px;font-weight:700;color:var(--text)">Visa</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">${visaAcct.name}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(visaAcct,32)}</div>
+          <div class="wizard-cat-name">Visa</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${visaAcct.name}</div>
         </div>` : ''}
         ${masterAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${masterAcct.id}')">
-          <div style="font-size:18px;font-weight:700;color:var(--text)">Mastercard</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px">${masterAcct.name}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(masterAcct,32)}</div>
+          <div class="wizard-cat-name">Mastercard</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${masterAcct.name}</div>
         </div>` : ''}
         ${otherAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${otherAcct.id}')" style="grid-column:1/-1">
-          <div style="font-size:18px;font-weight:700;color:var(--text)">${otherAcct.name}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(otherAcct,32)}</div>
+          <div class="wizard-cat-name">${otherAcct.name}</div>
         </div>` : ''}
       </div>`;
     }
@@ -1884,7 +1931,7 @@ function wizardBack() {
   if(s.step > 1) { s.step--; s.acctSubStep = 'type'; renderWizard(); }
 }
 
-function wizardAcctPickType(kind) {
+function wizardAcctPickType(kind, acctId) {
   const s = wizardState;
   if(kind === 'bank') {
     s.acctSubStep = 'bank';
@@ -1893,7 +1940,7 @@ function wizardAcctPickType(kind) {
     const acct = state.accounts.find(a=>a.type==='cash');
     if(acct) wizardSelectAcct(acct.id);
   } else if(kind === 'wallet') {
-    const acct = state.accounts.find(a=>a.type==='wallet');
+    const acct = acctId ? state.accounts.find(a=>a.id===acctId) : state.accounts.find(a=>a.type==='wallet');
     if(acct) wizardSelectAcct(acct.id);
   }
 }
@@ -3627,6 +3674,23 @@ function renderConfig() {
     return row;
   }).join('')}</div>`;
 
+  // banks
+  const bl = document.getElementById('banks-config-list');
+  if(bl) {
+    if(!state.banks) state.banks = [];
+    bl.innerHTML = state.banks.length ? `<div style="display:flex;flex-direction:column;gap:6px">${state.banks.map(b=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm)">
+        ${_bankLogoCircle(b, 36)}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:500">${b.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${state.accounts.filter(a=>a.bank===b.name).length} cuenta(s) asociada(s)</div>
+        </div>
+        <span style="font-size:12px;color:var(--text2);cursor:pointer;padding:4px 8px" onclick="openBankModal('${b.id}')">Editar</span>
+        <span style="font-size:12px;color:var(--red);cursor:pointer;padding:4px" onclick="deleteBank('${b.id}')">✕</span>
+      </div>`).join('')}</div>`
+    : '<div style="font-size:13px;color:var(--text3);padding:8px 0">No hay bancos configurados.</div>';
+  }
+
   restoreCfgSections();
 
   // natures
@@ -4346,6 +4410,86 @@ function saveEvent(id) {
 function openAddAccountModal() { openAccountModal(null); }
 function openEditAccountModal(id) { openAccountModal(id); }
 
+// ── BANCOS ────────────────────────────────────────────────────────────────────
+function openBankModal(id) {
+  if(!state.banks) state.banks = [];
+  const b = id ? state.banks.find(b=>b.id===id) : null;
+  const COLORS = ['#003DA5','#EC0000','#003087','#004A97','#1B7B2B','#CC0000','#4a3aaa','#1a7a4a','#E85F00','#7C3AED','#444444'];
+  const colorPicker = COLORS.map(c=>`
+    <div id="bclr-${c.replace('#','')}" onclick="selectBankColor('${c}')"
+      style="width:28px;height:28px;border-radius:50%;background:${c};cursor:pointer;border:${(b?.color||COLORS[0])===c?'3px solid var(--text)':'3px solid transparent'}"></div>`).join('');
+  const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;padding:2px 12px 12px 20px">
+      <span style="font-size:15px;font-weight:600;flex:1">${b?'Editar banco':'Nuevo banco'}</span>
+      <button onclick="saveBank('${id||''}')" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--accent);display:flex;align-items:center;justify-content:center;border-radius:50%">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      </button>
+      <button onclick="closeModal()" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;border-radius:50%">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="19" height="19"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="form-body" style="padding-top:0">
+      <div class="field" style="margin-bottom:14px">
+        <label>Nombre</label>
+        <input type="text" id="bank-name" value="${b?.name||''}" placeholder="Ej: Galicia, Santander..."/>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Color</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${colorPicker}</div>
+        <input type="hidden" id="bank-color" value="${b?.color||COLORS[0]}"/>
+      </div>
+    </div>
+  </div></div>`;
+  document.getElementById('modal-root').innerHTML = html;
+}
+
+function selectBankColor(color) {
+  document.getElementById('bank-color').value = color;
+  document.querySelectorAll('[id^="bclr-"]').forEach(el=>{
+    const c = '#'+el.id.replace('bclr-','');
+    el.style.border = c===color ? '3px solid var(--text)' : '3px solid transparent';
+  });
+}
+
+function _bankBg(color) {
+  // Genera un bg claro a partir del color del banco
+  if(!color) return 'var(--bg4)';
+  try {
+    const r=parseInt(color.slice(1,3),16), g=parseInt(color.slice(3,5),16), b=parseInt(color.slice(5,7),16);
+    return `rgba(${r},${g},${b},0.12)`;
+  } catch(e) { return 'var(--bg4)'; }
+}
+
+function saveBank(id) {
+  const name = document.getElementById('bank-name').value.trim();
+  if(!name) { showToast('Ingresá un nombre'); return; }
+  const color = document.getElementById('bank-color').value || '#444444';
+  const bg = _bankBg(color);
+  if(!state.banks) state.banks = [];
+  if(id) {
+    const b = state.banks.find(b=>b.id===id);
+    if(b) Object.assign(b, { name, color, bg });
+    // Actualizar cuentas que referencian el nombre viejo si cambió
+  } else {
+    state.banks.push({ id:'b'+Date.now(), name, color, bg });
+  }
+  saveState(); closeModal(); renderConfig();
+  showToast(id ? 'Banco actualizado' : 'Banco creado');
+}
+
+function deleteBank(id) {
+  if(!state.banks) return;
+  const b = state.banks.find(b=>b.id===id);
+  if(!b) return;
+  const linked = state.accounts.filter(a=>a.bank===b.name).length;
+  if(linked > 0 && !confirm(`"${b.name}" tiene ${linked} cuenta(s) asociada(s). ¿Eliminar igual?`)) return;
+  state.banks = state.banks.filter(b=>b.id!==id);
+  saveState(); renderConfig();
+  showToast('Banco eliminado');
+}
+
 const ACCT_ICONS = {
   cash:    { id:'cash-bills',   svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="2" y="7" width="20" height="11" rx="1"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/></svg>`, label:'Efectivo' },
   credit:  { id:'credit-card', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>`, label:'Tarjeta' },
@@ -4409,6 +4553,22 @@ function _masterSvg(sz) {
   var cx1=sz*0.39, cx2=sz*0.61, r=sz*0.23, cy=sz*0.5;
   return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 '+sz+' '+sz+'"><circle cx="'+cx1+'" cy="'+cy+'" r="'+r+'" fill="#EB001B" opacity="0.9"/><circle cx="'+cx2+'" cy="'+cy+'" r="'+r+'" fill="#F79E1B" opacity="0.9"/></svg>';
 }
+// Renderiza círculo con logo real (Clearbit) + fallback a iniciales
+function _bankLogoCircle(bank, px) {
+  px = px || 32;
+  var ini = bank.name.substring(0,2).toUpperCase();
+  var fs  = Math.round(px * 0.36);
+  var fallback = 'this.style.display=\'none\';this.nextSibling.style.display=\'flex\'';
+  if(bank.domain) {
+    var url = 'https://logo.clearbit.com/' + bank.domain;
+    return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">'
+      +'<img src="'+url+'" width="'+px+'" height="'+px+'" style="object-fit:contain;border-radius:50%" onerror="'+fallback+'">'
+      +'<span style="display:none;width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';align-items:center;justify-content:center;font-size:'+fs+'px;font-weight:700;color:'+bank.color+'">'+ini+'</span>'
+      +'</div>';
+  }
+  return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bank.bg+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:'+fs+'px;font-weight:700;color:'+bank.color+'">'+ini+'</div>';
+}
+
 function _acctLogoDot(a, px) {
   px = px || 28;
   var nm = (a.name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -4417,7 +4577,19 @@ function _acctLogoDot(a, px) {
   // 1. Visa / Master por cardBrand o nombre
   if (brand === 'visa'   || /\bvisa\b/.test(nm))   return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:#EEF2FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+_visaSvg(px)+'</div>';
   if (brand === 'master' || /master/.test(nm))       return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:#FFF3EE;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">'+_masterSvg(px)+'</div>';
-  // 2. Lookup en BRAND_LOGOS (nombre primero, luego banco)
+  // 2. Lookup en state.banks (mayor prioridad)
+  var stateBankMatch = null;
+  if(typeof state !== 'undefined' && state.banks) {
+    state.banks.forEach(function(b) {
+      if(stateBankMatch) return;
+      var bname = b.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      if(bn === bname || nm.indexOf(bname) >= 0 || bn.indexOf(bname) >= 0) stateBankMatch = b;
+    });
+  }
+  if(stateBankMatch) {
+    return _bankLogoCircle(stateBankMatch, px);
+  }
+  // 3. Lookup en BRAND_LOGOS (nombre primero, luego banco)
   var logo = null;
   [nm, bn].forEach(function(src) {
     if (logo) return;
@@ -4431,7 +4603,7 @@ function _acctLogoDot(a, px) {
     var fs2 = Math.round(px*0.36);
     return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+logo.bg+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:'+fs2+'px;font-weight:700;color:'+logo.color+'">'+logo.initials+'</div>';
   }
-  // 3. Fallback: iniciales + color por tipo
+  // 4. Fallback: iniciales + color por tipo
   var parts = (a.name||'?').trim().split(/\s+/);
   var ini = parts.length >= 2 ? (parts[0][0]+parts[1][0]).toUpperCase() : parts[0].slice(0,2).toUpperCase();
   var typeBg  = {cash:'var(--bg4)',credit:'rgba(92,52,201,0.12)',account:'rgba(26,122,74,0.12)',wallet:'rgba(0,158,227,0.12)',invest:'rgba(245,158,11,0.12)'}[a.type]||'var(--bg4)';
@@ -4459,13 +4631,16 @@ function openAccountModal(id) {
   const isEdit = !!id;
   const a = isEdit ? state.accounts.find(a=>a.id===id) : null;
   const selectedType = a?.type || 'cash';
-  // collect distinct banks from existing accounts
-  const banks = [...new Set(state.accounts.filter(ac=>ac.bank).map(ac=>ac.bank))];
   const showBank = selectedType !== 'cash';
-  const bankLabel = selectedType === 'wallet' ? 'APP' : 'Cuenta';
-  const bankPlaceholder = selectedType === 'wallet' ? 'Nombre de la app' : 'Nombre de la cuenta';
-  const bankOptions = banks.map(b=>`<option value="${b}" ${a?.bank===b?'selected':''}>${b}</option>`).join('');
+  const bankLabel = selectedType === 'wallet' ? 'APP' : 'Banco';
   const showCard = selectedType === 'credit';
+  // Bancos desde state.banks; fallback a texto libre existente en cuenta
+  const stateBanks = state.banks || [];
+  const freeBanks = [...new Set(state.accounts.filter(ac=>ac.bank && !stateBanks.find(b=>b.name===ac.bank)).map(ac=>ac.bank))];
+  const allBankOpts = [
+    ...stateBanks.map(b=>`<option value="${b.name}" ${a?.bank===b.name?'selected':''}>${b.name}</option>`),
+    ...freeBanks.map(b=>`<option value="${b}" ${a?.bank===b?'selected':''}>${b}</option>`),
+  ].join('');
   const cardField = `<div class="field" id="ac-card-wrap" style="${showCard?'':'display:none'}">
     <label>Tarjeta</label>
     <select id="ac-card">
@@ -4480,10 +4655,10 @@ function openAccountModal(id) {
     <div style="display:flex;gap:8px">
       <select id="ac-bank" style="flex:1">
         <option value="">Sin ${bankLabel.toLowerCase()}</option>
-        ${bankOptions}
-        <option value="__new__">+ Nuevo...</option>
+        ${allBankOpts}
+        <option value="__new__">+ Nuevo banco...</option>
       </select>
-      <input type="text" id="ac-bank-new" placeholder="${bankPlaceholder}" style="display:none;flex:1" value=""/>
+      <input type="text" id="ac-bank-new" placeholder="Nombre del banco" style="display:none;flex:1" value=""/>
     </div>
   </div>`;
   // Icon picker — one button per account type
