@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.04';
+const APP_VERSION = 'v2.06';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -7865,6 +7865,32 @@ function _extractVencimientoDateFull(text) {
   return null;
 }
 
+// ── Próximo cierre / próximo vencimiento ──────────────────────────
+var _PROX_MO={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+function _proxAnyDate(tok){
+  var m=tok.match(/^(\d{4})[\/\-\.](\d{2})[\/\-\.](\d{2})$/); if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=tok.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/); if(m){var yr=parseInt(m[3]);if(yr<100)yr+=2000;return _isoFromParts(yr,parseInt(m[2]),parseInt(m[1]));}
+  m=tok.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/); if(m){var mo=_PROX_MO[m[2].toLowerCase().slice(0,3)];if(mo){var y=parseInt(m[3]);if(y<100)y+=2000;return _isoFromParts(y,mo,parseInt(m[1]));}}
+  return null;
+}
+function _proxDateRe(){ return /\d{4}[\/\-\.]\d{2}[\/\-\.]\d{2}|\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,}\s+\d{2,4}/g; }
+function _proxFirstDate(s){ var re=_proxDateRe(),m; while((m=re.exec(s))){ var d=_proxAnyDate(m[0]); if(d) return d; } return null; }
+function _proxLastDate(s){ var re=_proxDateRe(),m,last=null; while((m=re.exec(s))){ var d=_proxAnyDate(m[0]); if(d) last=d; } return last; }
+// kind: 'cierre' | 'vto'. Soporta SUPV (fecha en la misma línea tras la etiqueta)
+// y Patagonia (etiqueta sola; la fecha es la última de la línea siguiente).
+function _extractProxFecha(text, kind){
+  var lines=text.split('\n');
+  var lblRe = kind==='cierre' ? /pr[oó]ximo\s+cierre/i : /pr[oó]ximo\s+(?:vto\.?|vencimiento)/i;
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i]; var mm=l.match(lblRe); if(!mm) continue;
+    var seg=l.slice(l.indexOf(mm[0])+mm[0].length);
+    var d=_proxFirstDate(seg); if(d) return d;
+    for(var j=i+1;j<Math.min(i+3,lines.length);j++){ var dn=_proxLastDate(lines[j]); if(dn) return dn; }
+    return null;
+  }
+  return null;
+}
+
 function _extractStatementMonth(text) {
   var lines=text.split('\n');
   var MONTHS={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
@@ -8020,6 +8046,8 @@ function _processFile(file) {
           IMP.prevClosingDate = _extractPrevClosingDate(text);
           IMP.cierreDate = _extractCierreDateFull(text);
           IMP.vencimientoDate = _extractVencimientoDateFull(text);
+          IMP.proxCierreDate = _extractProxFecha(text,'cierre');
+          IMP.proxVtoDate = _extractProxFecha(text,'vto');
           var parsed = _parseTxt(text);
           if (!parsed.length) { _showRawText(text); return; }
           // Confirmación previa de banco + tarjeta, luego revisión de movimientos
@@ -8918,32 +8946,35 @@ window.impConfirm = function() {
   });
   state.lastImport = {ids:importedIds, ts:Date.now()};
   _addHistory({fileName:IMP.fileName,date:_today(),count:todo.length,accountId:IMP.accountIdARS});
-  // Guardar fechas cierre/vencimiento detectadas, indexadas por mes del extracto
-  if (IMP.cierreDate || IMP.vencimientoDate) {
-    var _tgt = state.accounts.find(function(a){ return a.id===IMP.accountIdARS; });
-    if (_tgt && _tgt.type==='credit') {
-      if (!_tgt.creditDates) _tgt.creditDates = {};
-      // Clave del mes: usar stmtMonth si disponible, sino el mes del cierre detectado
-      var _stmtKey = IMP.stmtMonth ? IMP.stmtMonth.slice(0,7)
-                   : IMP.cierreDate ? IMP.cierreDate.slice(0,7) : null;
-      if (_stmtKey) {
-        if (!_tgt.creditDates[_stmtKey]) _tgt.creditDates[_stmtKey] = {};
-        if (IMP.cierreDate)      _tgt.creditDates[_stmtKey].cierreDate      = IMP.cierreDate;
-        if (IMP.vencimientoDate) _tgt.creditDates[_stmtKey].vencimientoDate = IMP.vencimientoDate;
-        // Propagar a cuentas del mismo banco+marca
-        if (_tgt.banco && _tgt.cardBrand) {
-          state.accounts.forEach(function(a) {
-            if (a.id!==_tgt.id && a.type==='credit' && a.banco===_tgt.banco && a.cardBrand===_tgt.cardBrand) {
-              if (!a.creditDates) a.creditDates = {};
-              if (!a.creditDates[_stmtKey]) a.creditDates[_stmtKey] = {};
-              if (IMP.cierreDate)      a.creditDates[_stmtKey].cierreDate      = IMP.cierreDate;
-              if (IMP.vencimientoDate) a.creditDates[_stmtKey].vencimientoDate = IMP.vencimientoDate;
-            }
-          });
-        }
+  // Guardar fechas del resumen, tal cual vienen (sin propagar ni derivar):
+  //  - ACTUAL  (cierre/venc) → mes del resumen
+  //  - PRÓXIMO (cierre/venc) → mes siguiente al del resumen
+  // Se escriben en las cuentas del propio resumen (par $ y u$s si corresponde).
+  (function(){
+    var actualKey = IMP.stmtMonth ? IMP.stmtMonth.slice(0,7)
+                  : IMP.cierreDate ? IMP.cierreDate.slice(0,7) : null;
+    if(!actualKey) return;
+    var ay=parseInt(actualKey.slice(0,4),10), am=parseInt(actualKey.slice(5,7),10);
+    var nm=am===12?1:am+1, ny=am===12?ay+1:ay;
+    var nextKey = ny+'-'+(nm<10?'0'+nm:''+nm);
+    var targets = [IMP.accountIdARS, IMP.accountIdUSD]
+      .filter(Boolean)
+      .map(function(id){ return state.accounts.find(function(a){ return a.id===id; }); })
+      .filter(function(a){ return a && a.type==='credit'; });
+    targets.forEach(function(a){
+      if(!a.creditDates) a.creditDates={};
+      if(IMP.cierreDate || IMP.vencimientoDate){
+        if(!a.creditDates[actualKey]) a.creditDates[actualKey]={};
+        if(IMP.cierreDate)      a.creditDates[actualKey].cierreDate      = IMP.cierreDate;
+        if(IMP.vencimientoDate) a.creditDates[actualKey].vencimientoDate = IMP.vencimientoDate;
       }
-    }
-  }
+      if(IMP.proxCierreDate || IMP.proxVtoDate){
+        if(!a.creditDates[nextKey]) a.creditDates[nextKey]={};
+        if(IMP.proxCierreDate) a.creditDates[nextKey].cierreDate      = IMP.proxCierreDate;
+        if(IMP.proxVtoDate)    a.creditDates[nextKey].vencimientoDate = IMP.proxVtoDate;
+      }
+    });
+  })();
   // Aprendizaje: guardar el número de cuenta detectado SOLO en cuentas que coincidan
   // con el banco+marca detectados (evita contaminar cuentas fallback, ej: una Visa u$s
   // que _detectAccounts eligió como USD para un resumen Master).
