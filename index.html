@@ -661,7 +661,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.88';
+const APP_VERSION = 'v1.89';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1747,9 +1747,9 @@ function renderWizard() {
     bodyHtml = `<div class="wizard-grid">
       ${cats.map(c=>`
         <div class="wizard-cat-btn" onclick="wizardSelectCat('${c.code}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>
-          <div class="wizard-cat-name">${c.code}</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${c.name||''}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${c.code}</div>
+          ${c.name?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${c.name}</div>`:''}
         </div>`).join('')}
     </div>`;
   } else if(s.step === 3) {
@@ -2348,9 +2348,9 @@ function _fpRenderBody() {
       + cats.map(function(c){
           var sel = c.code===formState.catCode;
           return '<div class="wizard-cat-btn" onclick="_fpSelectCat(\''+c.code+'\')" style="'+(sel?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:'+c.color+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26">'+getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')+'</svg></div>'
-            +'<div class="wizard-cat-name">'+c.code+'</div>'
-            +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+(c.name||'')+'</div>'
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:'+c.color+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">'+getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')+'</svg></div>'
+            +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+c.code+'</div>'
+            +(c.name?'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+c.name+'</div>':'')
             +'</div>';
         }).join('')
       + '</div>';
