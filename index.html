@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.92';
+const APP_VERSION = 'v1.93';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -753,6 +753,13 @@ function loadState() {
     // Migración: agregar banks si no existe
     if(!loaded.banks) {
       loaded.banks = defaultState().banks;
+    }
+    // Migración: pre-cargar CUIT de emisores conocidos (para detectar resúmenes)
+    if(loaded.banks){
+      var _knownCuit={ 'supervielle':'33500005179', 'patagonia':'30500006613' };
+      loaded.banks.forEach(function(b){
+        if(b && b.name && !b.cuit){ var k=_knownCuit[b.name.toLowerCase().trim()]; if(k) b.cuit=k; }
+      });
     }
     return loaded;
   } catch(e) { return defaultState(); }
@@ -4688,6 +4695,11 @@ function openBankModal(id) {
         <input type="text" id="bank-name" value="${b?.name||''}" placeholder="Ej: Galicia, Santander..."/>
       </div>
       <div class="field" style="margin-bottom:14px">
+        <label>CUIT del emisor (para detectar resúmenes)</label>
+        <input type="text" id="bank-cuit" value="${b?.cuit||''}" placeholder="Ej: 33-50000517-9" inputmode="numeric"/>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">Figura en el resumen de la tarjeta. Sirve para reconocer automáticamente de qué banco es al importar.</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
         <label>Logo (URL de imagen)</label>
         <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
           <div id="bank-logo-preview" style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3)">
@@ -4742,12 +4754,13 @@ function saveBank(id) {
   const color = document.getElementById('bank-color').value || '#444444';
   const bg = _bankBg(color);
   const logoUrl = (document.getElementById('bank-logo-url')?.value || '').trim();
+  const cuit = (document.getElementById('bank-cuit')?.value || '').replace(/[^0-9]/g,'');
   if(!state.banks) state.banks = [];
   if(id) {
     const b = state.banks.find(b=>b.id===id);
-    if(b) Object.assign(b, { name, color, bg, logoUrl });
+    if(b) Object.assign(b, { name, color, bg, logoUrl, cuit });
   } else {
-    state.banks.push({ id:'b'+Date.now(), name, color, bg, logoUrl });
+    state.banks.push({ id:'b'+Date.now(), name, color, bg, logoUrl, cuit });
   }
   saveState(); closeModal(); renderConfig();
   showToast(id ? 'Banco actualizado' : 'Banco creado');
@@ -4925,6 +4938,9 @@ function openAccountModal(id) {
       <option value="Master" ${a?.cardBrand==='Master'?'selected':''}>Mastercard</option>
       <option value="Amex" ${a?.cardBrand==='Amex'?'selected':''}>Amex</option>
     </select>
+    <label style="margin-top:10px">Número de cuenta (para detectar resúmenes)</label>
+    <input type="text" id="ac-nrocuenta" value="${a?.nroCuenta||''}" placeholder="Ej: 1107271845" inputmode="numeric"/>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">Figura en el resumen (NRO/N° DE CUENTA). Al importar, identifica exactamente esta tarjeta. Se completa solo la primera vez que importás.</div>
   </div>`;
   const bankField = `<div class="field" id="ac-bank-wrap" style="${showBank?'':'display:none'}">
     <label id="ac-bank-label">${bankLabel}</label>
@@ -5102,15 +5118,16 @@ function saveAccount(id) {
     }
   }
   const cardBrand = (document.getElementById('ac-card')?.value || '');
+  const nroCuenta = (document.getElementById('ac-nrocuenta')?.value || '').replace(/[^0-9]/g,'');
   const inclToggle = document.getElementById('ac-include-toggle');
   const includeInGroup = inclToggle ? inclToggle.classList.contains('on') : true;
   const grupo = (document.getElementById('ac-grupo')?.value || '').trim();
   if(id) {
     const a = state.accounts.find(a=>a.id===id);
-    if(a) Object.assign(a, { name, type, currency, bank, cardBrand, includeInGroup, grupo, updatedAt: Date.now() });
+    if(a) Object.assign(a, { name, type, currency, bank, cardBrand, nroCuenta, includeInGroup, grupo, updatedAt: Date.now() });
   } else {
     const newId = 'a'+Date.now();
-    state.accounts.push({ id:newId, name, type, currency, bank, cardBrand, includeInGroup, grupo, updatedAt: Date.now() });
+    state.accounts.push({ id:newId, name, type, currency, bank, cardBrand, nroCuenta, includeInGroup, grupo, updatedAt: Date.now() });
     if(isDefault) state.defaultAccountId = newId;
   }
   if(isDefault && id) state.defaultAccountId = id;
@@ -7676,22 +7693,71 @@ function _addHistory(entry) {
 }
 
 // ── Detección de banco/tarjeta ────────────────────────────────────
+// Versión compacta del texto (sin espacios ni signos) para tolerar artefactos
+// de extracción del PDF como "VIS A", "MAS TERCARD", "S upervielle".
+function _impCompact(t){ return (t||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+
+// CUIT del emisor (11 dígitos). Ancla más confiable para identificar el banco.
+function _extractCuit(text){
+  var t=(text||'');
+  var m=t.match(/CUIT[\s.:]*([0-9][0-9\s\-]{9,20}[0-9])/i);
+  if(m){ var d=m[1].replace(/[^0-9]/g,''); if(d.length===11) return d; }
+  var m2=t.match(/\b(\d{2}-\d{8}-\d)\b/);
+  if(m2) return m2[1].replace(/[^0-9]/g,'');
+  return '';
+}
+
+// Número de cuenta de la tarjeta ("NRO DE CUENTA : 1107271845" / "N DE CUENTA: 0061334928")
+function _extractNroCuenta(text){
+  var m=(text||'').match(/N(?:RO)?[\s.°ºo]*DE\s*CUENTA[\s.:]*([0-9]{6,})/i);
+  return m?m[1]:'';
+}
+
+// Marca de la tarjeta, robusta a artefactos y a formatos sin la palabra (Patagonia usa código MC/CR)
+function _detectBrand(text){
+  var c=_impCompact(text);
+  if(c.indexOf('MASTERCARD')>=0) return 'Master';
+  if(c.indexOf('VISA')>=0) return 'Visa';
+  if(c.indexOf('AMERICANEXPRESS')>=0||c.indexOf('AMEX')>=0) return 'Amex';
+  if(/\bMC\d{3,4}\b/.test(text)) return 'Master';
+  if(/\bCR\d{3,4}\b/.test(text)) return 'Visa';
+  return '';
+}
+
+// Banco según el CUIT guardado en state.banks
+function _bankByCuit(cuit){
+  if(!cuit) return '';
+  var banks=(state&&state.banks)||[];
+  var b=banks.find(function(x){ return x.cuit && x.cuit.replace(/[^0-9]/g,'')===cuit; });
+  return b?b.name:'';
+}
+
+// Cuenta de tarjeta cuyo nroCuenta coincide exactamente (match más rápido y preciso)
+function _acctByNroCuenta(nro){
+  if(!nro) return null;
+  var accts=(state&&state.accounts)||[];
+  return accts.find(function(a){ return a.nroCuenta && a.nroCuenta.replace(/[^0-9]/g,'')===nro; })||null;
+}
+
 function _detectBank(text, fileName) {
   var t=(text||'').toUpperCase();
-  var fn=(fileName||'').toUpperCase().replace(/\.[^.]+$/,''); // sin extensión
-  var hdr=t.slice(0,1000), ftr=t.slice(-1000);
-  function _fb(s){return s.indexOf('SUPERVIELLE')>=0?'Supervielle':(s.indexOf('PATAGONIA')>=0?'Patagonia':'');}
-  function _fc(s){return s.indexOf('VISA')>=0?'Visa':(s.indexOf('MASTER')>=0?'Master':(s.indexOf('AMEX')>=0?'Amex':''));}
-  // 1. Nombre del archivo (máxima prioridad)
+  var fn=(fileName||'').toUpperCase().replace(/\.[^.]+$/,'');
+  var banks=(state&&state.banks)||[];
+  var cuit=_extractCuit(text);
+  // 1. CUIT del emisor (lo más confiable, configurable por banco)
+  var bankByCuit=_bankByCuit(cuit);
+  // 2. Nombre de archivo (PATA/SUPV o cualquier nombre del registro)
   var bankFromFile=/PATAGONIA|PATA/.test(fn)?'Patagonia':(/SUPERVIELLE|SUPV/.test(fn)?'Supervielle':'');
-  // 2. Señales estructurales del formato PDF
+  if(!bankFromFile){ var bf=banks.find(function(b){ return b.name && fn.indexOf(b.name.toUpperCase())>=0; }); if(bf) bankFromFile=bf.name; }
+  // 3. Nombre del banco en el texto (compactado, tolera espacios espurios)
+  var cmp=_impCompact(text), bankFromText='';
+  banks.forEach(function(b){ if(!bankFromText && b.name){ var bn=b.name.toUpperCase().replace(/[^A-Z0-9]/g,''); if(bn && cmp.indexOf(bn)>=0) bankFromText=b.name; } });
+  // 4. Señales estructurales del formato (último recurso)
   var sigPata=/cierre\s+actual|cierre\s+anterior/i.test(t);
   var sigSuper=/fecha\s+cierre\s+ant/i.test(t);
   var sigBank=sigPata&&!sigSuper?'Patagonia':(sigSuper&&!sigPata?'Supervielle':'');
-  // 3. Texto header/footer, luego texto completo
-  var bank=bankFromFile||_fb(hdr)||_fb(ftr)||sigBank||_fb(t);
-  var card=_fc(hdr)||_fc(ftr)||_fc(t);
-  return {bank:bank,card:card};
+  var bank=bankByCuit||bankFromFile||bankFromText||sigBank;
+  return {bank:bank, card:_detectBrand(text), cuit:cuit, nro:_extractNroCuenta(text)};
 }
 function _detectAccounts(bank, card) {
   var accts=(state&&state.accounts)||[];
@@ -7882,6 +7948,7 @@ window.impHandleFile = function(event, type) {
 };
 
 function _processFile(file) {
+  IMP.detectedNro = ''; IMP.detectedCuit = '';
   _showLoading(file.name);
   var reader = new FileReader();
   if (IMP.fileType === 'pdf') {
@@ -7893,6 +7960,8 @@ function _processFile(file) {
           IMP.detectedCard = det.card || '';
           IMP.cardBrand = det.card || '';
           IMP.currentBank = det.bank || '';
+          IMP.detectedNro = det.nro || '';
+          IMP.detectedCuit = det.cuit || '';
           // ── Extracto de cuenta bancaria ───────────────────────────
           if (_isBankMovPDF(IMP.fileName, det.bank, det.card)) {
             IMP.isBankStatement = true;
@@ -7904,9 +7973,22 @@ function _processFile(file) {
           }
           // ── Resumen de tarjeta de crédito (flujo original) ───────
           IMP.isBankStatement = false;
-          var acts = _detectAccounts(det.bank, det.card);
-          if (acts.arsId) IMP.accountIdARS = acts.arsId;
-          if (acts.usdId) IMP.accountIdUSD = acts.usdId;
+          // Prioridad 1: match exacto por número de cuenta ya guardado en una tarjeta
+          var byNro = _acctByNroCuenta(det.nro);
+          if (byNro) {
+            IMP.currentBank = byNro.bank || IMP.currentBank;
+            IMP.cardBrand = byNro.cardBrand || IMP.cardBrand;
+            var sameNro = state.accounts.filter(function(a){ return a.nroCuenta && det.nro && a.nroCuenta.replace(/[^0-9]/g,'')===det.nro; });
+            var arsA = sameNro.find(function(a){return a.currency==='ARS';});
+            var usdA = sameNro.find(function(a){return a.currency==='USD';});
+            IMP.accountIdARS = (arsA||byNro).id;
+            if (usdA) IMP.accountIdUSD = usdA.id;
+          } else {
+            // Prioridad 2: detección por banco + marca + moneda
+            var acts = _detectAccounts(det.bank, det.card);
+            if (acts.arsId) IMP.accountIdARS = acts.arsId;
+            if (acts.usdId) IMP.accountIdUSD = acts.usdId;
+          }
           IMP.stmtMonth = _extractStatementMonth(text);
           IMP.prevClosingDate = _extractPrevClosingDate(text);
           IMP.cierreDate = _extractCierreDateFull(text);
@@ -8816,6 +8898,14 @@ window.impConfirm = function() {
         }
       }
     }
+  }
+  // Aprendizaje: guardar el número de cuenta detectado en la(s) tarjeta(s) destino (solo si no lo tenían)
+  if (IMP.detectedNro) {
+    [IMP.accountIdARS, IMP.accountIdUSD].forEach(function(aid){
+      if(!aid) return;
+      var a=state.accounts.find(function(x){return x.id===aid;});
+      if(a && a.type==='credit' && !a.nroCuenta) a.nroCuenta = IMP.detectedNro;
+    });
   }
   saveState(); _closeImp(); renderMonths(); updateAccountHeader(); renderConfig();
   showToast(todo.length+' movimiento'+(todo.length!==1?'s':'')+' importado'+(todo.length!==1?'s':'')+' ✓');
