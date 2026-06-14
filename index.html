@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.97';
+const APP_VERSION = 'v1.98';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -746,22 +746,22 @@ function defaultState() {
   };
 }
 
+// Migraciones idempotentes — se aplican TANTO al cargar local como al recibir datos de la nube
+function _migrateState(s){
+  if(!s || typeof s!=='object') return s;
+  if(!s.banks) s.banks = defaultState().banks;
+  // Pre-cargar CUIT de emisores conocidos (para detectar resúmenes)
+  var _knownCuit={ 'supervielle':'33500005179', 'patagonia':'30500006613' };
+  if(s.banks) s.banks.forEach(function(b){
+    if(b && b.name && !b.cuit){ var k=_knownCuit[b.name.toLowerCase().trim()]; if(k) b.cuit=k; }
+  });
+  return s;
+}
 function loadState() {
   try {
     const s = localStorage.getItem('gastosAppV1');
     const loaded = s ? JSON.parse(s) : defaultState();
-    // Migración: agregar banks si no existe
-    if(!loaded.banks) {
-      loaded.banks = defaultState().banks;
-    }
-    // Migración: pre-cargar CUIT de emisores conocidos (para detectar resúmenes)
-    if(loaded.banks){
-      var _knownCuit={ 'supervielle':'33500005179', 'patagonia':'30500006613' };
-      loaded.banks.forEach(function(b){
-        if(b && b.name && !b.cuit){ var k=_knownCuit[b.name.toLowerCase().trim()]; if(k) b.cuit=k; }
-      });
-    }
-    return loaded;
+    return _migrateState(loaded);
   } catch(e) { return defaultState(); }
 }
 function saveState() { try { localStorage.setItem('gastosAppV1', JSON.stringify(state)); } catch(e){} if(window._cloudNotifyLocalChange){ try{ window._cloudNotifyLocalChange(); }catch(e){} } }
@@ -771,8 +771,7 @@ window.cloudApplyStateJSON = function(jsonStr){
   try {
     var obj = JSON.parse(jsonStr);
     if(!obj || typeof obj !== 'object') return false;
-    state = obj;
-    if(!state.banks){ state.banks = defaultState().banks; }
+    state = _migrateState(obj);
     try{ localStorage.setItem('gastosAppV1', JSON.stringify(state)); }catch(e){}
     if(typeof renderMonths==='function') renderMonths();
     if(typeof renderMonthSummary==='function') renderMonthSummary();
