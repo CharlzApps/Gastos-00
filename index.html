@@ -576,11 +576,6 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
               <div id="cloud-status" style="font-size:12px;color:var(--text3);line-height:1.5">Iniciá sesión para sincronizar entre dispositivos.</div>
               <button class="add-account-btn" id="cloud-login-btn" onclick="window.cloudLogin&&window.cloudLogin()" style="border-style:solid;color:var(--text);border-color:var(--border)">Iniciar sesión con Google</button>
               <button class="add-account-btn" id="cloud-logout-btn" onclick="window.cloudLogout&&window.cloudLogout()" style="display:none;border-style:solid;color:var(--text);border-color:var(--border)">Cerrar sesión</button>
-              <div id="cloud-actions" style="display:none;flex-direction:column;gap:8px">
-                <button class="add-account-btn" onclick="window.cloudPushOverwrite&&window.cloudPushOverwrite()" style="border-style:solid;color:var(--text);border-color:var(--border)">⬆ Subir este equipo (pisar la nube)</button>
-                <button class="add-account-btn" onclick="window.cloudPullOverwrite&&window.cloudPullOverwrite()" style="border-style:solid;color:var(--text);border-color:var(--border)">⬇ Bajar de la nube (pisar este equipo)</button>
-                <div style="font-size:11px;color:var(--text3);line-height:1.5">El sync automático está activo mientras tengas sesión iniciada. Usá estos botones solo para forzar una dirección (ej. dejar este equipo como fuente).</div>
-              </div>
             </div>
           </div>
         </div>
@@ -684,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.90';
+const APP_VERSION = 'v1.92';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -9238,9 +9233,10 @@ function _mergeStates(local, remote){
 }
 
 // ── Sync ─────────────────────────────────────────────────────────
-async function _doSync(){
-  // Si no hay conexión, ir a Ajustes → Dropbox
+async function _doSync(silent){
+  // Si no hay conexión: en modo manual avisar e ir a Ajustes; en auto, salir sin molestar
   if(!_getCfg().refreshToken){
+    if(silent) return;
     if(window.switchTab) switchTab('config');
     setTimeout(function(){
       var body=document.getElementById('cfgbody-dropbox');
@@ -9251,52 +9247,11 @@ async function _doSync(){
     showToast('Conectá Dropbox en Ajustes');
     return;
   }
-  var btn=document.getElementById('btn-dbx-sync');
   var icon=document.getElementById('dbx-sync-icon');
-  if(icon) icon.style.animation='dbx-spin 1s linear infinite';
+  if(!silent && icon) icon.style.animation='dbx-spin 1s linear infinite';
   try {
     var token=await _ensureFreshToken();
-
-    // Download remote
-    var dlRes=await fetch(DBX_DOWNLOAD_URL,{
-      method:'POST',
-      headers:{'Authorization':'Bearer '+token,'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE})}
-    });
-
-    var localTxCount=(state.txs||[]).length;
-    var addedFromRemote=0, updatedFromRemote=0, addedToRemote=0;
-
-    if(dlRes.status===409||dlRes.status===400){
-      // 409 = file not found (first sync); 400 can also mean path not found on App folder apps
-      var errBody=''; try{ var ej=await dlRes.json(); errBody=(ej.error_summary||''); }catch(e){}
-      var isNotFound=/not_found|not_file/.test(errBody);
-      if(!isNotFound && dlRes.status===400){
-        throw new Error('Dropbox 400: '+errBody+'  — Verificá que el App Key sea correcto y que la app tenga permiso de "files.content.write"');
-      }
-      // First sync: only upload
-      addedToRemote=localTxCount;
-    } else if(!dlRes.ok){
-      var errTxt=''; try{ errTxt=await dlRes.text(); }catch(e){}
-      throw new Error('Error descargando sync: '+dlRes.status+' '+errTxt.slice(0,120));
-    } else {
-      var remote=await dlRes.json();
-      var result=_mergeStates(state, remote);
-      addedFromRemote=result.addedFromRemote;
-      updatedFromRemote=result.updatedFromRemote;
-      addedToRemote=(result.merged.txs||[]).length - (remote.txs||[]).length;
-      if(addedToRemote<0) addedToRemote=0;
-      // Apply merged state
-      state=result.merged;
-      saveState();
-      renderMonths();
-      updateAccountHeader();
-      // Refrescar tabs si están visibles
-      if(document.getElementById('accounts-grid')) renderAccountsTab();
-      if(document.getElementById('config-root')&&document.getElementById('config-root').innerHTML) { if(window.renderConfig) renderConfig(); }
-    }
-
-    // Upload merged (or local if first sync)
-    var uploadData=JSON.stringify(state);
+    // Solo backup (una vía): subimos una copia completa del estado, sin bajar ni combinar
     var upRes=await fetch(DBX_UPLOAD_URL,{
       method:'POST',
       headers:{
@@ -9304,31 +9259,31 @@ async function _doSync(){
         'Content-Type':'application/octet-stream',
         'Dropbox-API-Arg':JSON.stringify({path:DBX_FILE,mode:'overwrite',autorename:false,mute:true})
       },
-      body:uploadData
+      body:JSON.stringify(state)
     });
-    if(!upRes.ok) throw new Error('Error subiendo sync: '+upRes.status);
-
+    if(!upRes.ok) throw new Error('Error subiendo backup: '+upRes.status);
     _dbxSet('lastSync', Date.now());
-    _renderDbxCfg();
-    var msg='Sync OK';
-    var parts=[];
-    if(addedFromRemote) parts.push('+'+addedFromRemote+' nuevos del remoto');
-    if(updatedFromRemote) parts.push(updatedFromRemote+' actualizados del remoto');
-    if(addedToRemote) parts.push('+'+addedToRemote+' subidos al remoto');
-    if(parts.length) msg+=' — '+parts.join(', ');
-    showToast(msg);
-    // Si hubo cambios del remoto, recargar la página para asegurar render completo
-    if(addedFromRemote || updatedFromRemote) {
-      setTimeout(function(){ window.location.reload(); }, 1200);
-    }
+    _dbxSet('lastBackup', Date.now());
+    if(!silent){ _renderDbxCfg(); showToast('Backup guardado en Dropbox ✓'); }
   } catch(e){
-    showToast('Sync error: '+e.message);
+    if(!silent) showToast('Backup error: '+e.message);
   } finally {
-    if(icon) icon.style.animation='';
+    if(!silent && icon) icon.style.animation='';
   }
 }
 
-window.dbxSync=function(){ _doSync(); };
+window.dbxSync=function(){ _doSync(false); };
+
+// Auto-backup diario: al abrir la app, si pasaron +20h desde el último backup, sube uno silencioso
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    try {
+      if(!_getCfg().refreshToken) return;
+      var last = _dbxGet('lastBackup') || 0;
+      if(Date.now() - last > 20*60*60*1000) _doSync(true);
+    } catch(e){}
+  }, 8000);
+});
 
 window.dbxWhoAmI=async function(){
   try {
