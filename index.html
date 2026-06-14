@@ -661,7 +661,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.87';
+const APP_VERSION = 'v1.88';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1760,18 +1760,12 @@ function renderWizard() {
     const catColor = cat?.color || 'var(--text3)';
     bodyHtml = `<div class="wizard-grid">
       ${subs.map(sub=>`
-        <div class="wizard-cat-btn" onclick="wizardSelectSub('${sub.replace(/'/g,"\\'")}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">
-            <div style="width:10px;height:10px;border-radius:50%;background:${catColor}"></div>
-          </div>
-          <div class="wizard-cat-name">${sub}</div>
+        <div class="wizard-cat-btn" onclick="wizardSelectSub('${sub.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;justify-content:center;min-height:52px">
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600;line-height:1.25">${sub}</div>
         </div>
       `).join('')}
-      <div class="wizard-cat-btn" onclick="wizardSelectSub('')">
-        <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">
-          <div style="width:10px;height:10px;border-radius:50%;background:var(--text3)"></div>
-        </div>
-        <div class="wizard-cat-name" style="color:var(--text3)">Sin subcategoría</div>
+      <div class="wizard-cat-btn" onclick="wizardSelectSub('')" style="display:flex;align-items:center;justify-content:center;min-height:52px">
+        <div class="wizard-cat-name" style="font-size:16px;font-weight:600;line-height:1.25;color:var(--text3)">Sin subcategoría</div>
       </div>
     </div>`;
   } else if(s.step === 4) {
@@ -2368,14 +2362,12 @@ function _fpRenderBody() {
     html = '<div class="wizard-grid">'
       + subs.map(function(sub){
           var sel = sub===formState.subcat;
-          return '<div class="wizard-cat-btn" onclick="_fpSelectSub(\''+sub.replace(/'/g,"\\'")+'\')" style="'+(sel?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px"><div style="width:10px;height:10px;border-radius:50%;background:'+catColor+'"></div></div>'
-            +'<div class="wizard-cat-name">'+sub+'</div>'
+          return '<div class="wizard-cat-btn" onclick="_fpSelectSub(\''+sub.replace(/'/g,"\\'")+'\')" style="display:flex;align-items:center;justify-content:center;min-height:52px;'+(sel?'border:2px solid var(--accent)':'')+'">'
+            +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600;line-height:1.25">'+sub+'</div>'
             +'</div>';
         }).join('')
-      + '<div class="wizard-cat-btn" onclick="_fpSelectSub(\'\')">'
-        +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px"><div style="width:10px;height:10px;border-radius:50%;background:var(--text3)"></div></div>'
-        +'<div class="wizard-cat-name" style="color:var(--text3)">Sin subcat.</div>'
+      + '<div class="wizard-cat-btn" onclick="_fpSelectSub(\'\')" style="display:flex;align-items:center;justify-content:center;min-height:52px">'
+        +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600;line-height:1.25;color:var(--text3)">Sin subcat.</div>'
         +'</div>'
       + '</div>';
 
