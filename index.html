@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.03';
+const APP_VERSION = 'v2.04';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -9116,28 +9116,29 @@ function _isDup(row,aid){
   var origD = new Date(origMs);
   var nextMonthFirstMs = new Date(origD.getFullYear(), origD.getMonth()+1, 1).getTime();
   var rowDescNorm = _normDesc(row.description || row.obs || '');
+  var DAY=86400*1000;
   return state.txs.some(function(t){
+    // Solo comparar contra movimientos de LA MISMA cuenta (evita falsos positivos cruzados)
+    if(aid && t.accountId && t.accountId !== aid) return false;
     var tAmt = parseFloat(t.amount) || 0;
     if(Math.abs(tAmt - rowAmt) > amtTol) return false;
     var tMs = new Date((t.date||'')+'T00:00:00').getTime();
     if(isBankStmt) {
-      // Extracto bancario: fecha exacta. UTC ya corregido en _pDateStr, no hay desfase.
-      // Fecha exacta evita el falso positivo de ±3 días (ej: $438.35 del 11/05 vs 14/05).
+      // Extracto bancario: fecha exacta.
       return tMs === rowMs;
     }
-    // Tarjeta de crédito: tolerancia ±3 días para cubrir ajustes de stmtMonth
-    // C1: fecha ajustada ±3 días
-    if(Math.abs(tMs - rowMs)        <= 3 * 86400 * 1000) return true;
-    // C2: fecha original ±3 días
-    if(Math.abs(tMs - origMs)       <= 3 * 86400 * 1000) return true;
-    // C3: 1° del mes siguiente a origDate ±3 días (overflow)
-    if(Math.abs(tMs - nextMonthFirstMs) <= 3 * 86400 * 1000) return true;
-    // C4 (fallback): descripción igual + ±7 días
-    if(!rowDescNorm) return false;
-    if(_normDesc(t.obs||'') !== rowDescNorm) return false;
-    return Math.abs(tMs - rowMs)        <= 7 * 86400 * 1000
-        || Math.abs(tMs - origMs)       <= 7 * 86400 * 1000
-        || Math.abs(tMs - nextMonthFirstMs) <= 7 * 86400 * 1000;
+    // Tarjeta de crédito.
+    // (1) Fecha EXACTA (cualquier variante: ajustada / original / overflow) + monto → duplicado,
+    //     aunque difiera la descripción. Esto cubre reimports idénticos del mismo resumen.
+    if(tMs === rowMs || tMs === origMs || tMs === nextMonthFirstMs) return true;
+    // (2) Proximidad ±3 días SOLO si además coincide la descripción (evita colisiones por monto).
+    var sameDesc = rowDescNorm && _normDesc(t.obs||'') === rowDescNorm;
+    if(sameDesc){
+      if(Math.abs(tMs - rowMs)            <= 3*DAY) return true;
+      if(Math.abs(tMs - origMs)           <= 3*DAY) return true;
+      if(Math.abs(tMs - nextMonthFirstMs) <= 3*DAY) return true;
+    }
+    return false;
   });
 }
 function _updBtn(){
