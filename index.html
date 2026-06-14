@@ -562,6 +562,29 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
           </div>
         </div>
 
+        <!-- Sincronización en la nube (Firebase) -->
+        <div class="cfg-section-wrap" id="cfgsec-cloud">
+          <div class="cfg-section-header" onclick="toggleCfgSection('cloud')">
+            <div class="cfg-section-icon" style="background:rgba(255,143,0,0.12);color:#ff8f00">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+            </div>
+            <div class="cfg-section-title">Sincronización (nube)</div>
+            <div class="cfg-section-chevron" id="chev-cloud">›</div>
+          </div>
+          <div class="cfg-section-body" id="cfgbody-cloud" style="display:none">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div id="cloud-status" style="font-size:12px;color:var(--text3);line-height:1.5">Iniciá sesión para sincronizar entre dispositivos.</div>
+              <button class="add-account-btn" id="cloud-login-btn" onclick="window.cloudLogin&&window.cloudLogin()" style="border-style:solid;color:var(--text);border-color:var(--border)">Iniciar sesión con Google</button>
+              <button class="add-account-btn" id="cloud-logout-btn" onclick="window.cloudLogout&&window.cloudLogout()" style="display:none;border-style:solid;color:var(--text);border-color:var(--border)">Cerrar sesión</button>
+              <div id="cloud-actions" style="display:none;flex-direction:column;gap:8px">
+                <button class="add-account-btn" onclick="window.cloudPushOverwrite&&window.cloudPushOverwrite()" style="border-style:solid;color:var(--text);border-color:var(--border)">⬆ Subir este equipo (pisar la nube)</button>
+                <button class="add-account-btn" onclick="window.cloudPullOverwrite&&window.cloudPullOverwrite()" style="border-style:solid;color:var(--text);border-color:var(--border)">⬇ Bajar de la nube (pisar este equipo)</button>
+                <div style="font-size:11px;color:var(--text3);line-height:1.5">El sync automático está activo mientras tengas sesión iniciada. Usá estos botones solo para forzar una dirección (ej. dejar este equipo como fuente).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Datos -->
         <div class="cfg-section-wrap" id="cfgsec-data">
           <div class="cfg-section-header" onclick="toggleCfgSection('data')">
@@ -661,7 +684,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.89';
+const APP_VERSION = 'v1.90';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -739,7 +762,24 @@ function loadState() {
     return loaded;
   } catch(e) { return defaultState(); }
 }
-function saveState() { try { localStorage.setItem('gastosAppV1', JSON.stringify(state)); } catch(e){} }
+function saveState() { try { localStorage.setItem('gastosAppV1', JSON.stringify(state)); } catch(e){} if(window._cloudNotifyLocalChange){ try{ window._cloudNotifyLocalChange(); }catch(e){} } }
+// ── Puentes para el módulo de sincronización en la nube (Firebase) ──
+window.cloudGetStateJSON = function(){ try{ return JSON.stringify(state); }catch(e){ return null; } };
+window.cloudApplyStateJSON = function(jsonStr){
+  try {
+    var obj = JSON.parse(jsonStr);
+    if(!obj || typeof obj !== 'object') return false;
+    state = obj;
+    if(!state.banks){ state.banks = defaultState().banks; }
+    try{ localStorage.setItem('gastosAppV1', JSON.stringify(state)); }catch(e){}
+    if(typeof renderMonths==='function') renderMonths();
+    if(typeof renderMonthSummary==='function') renderMonthSummary();
+    if(typeof renderAccountsTab==='function') renderAccountsTab();
+    if(typeof updateAccountHeader==='function') updateAccountHeader();
+    if(typeof renderConfig==='function') renderConfig();
+    return true;
+  } catch(e){ return false; }
+};
 
 function getDefaultAccountId() {
   // Returns the configured default account, falling back to first account
@@ -9491,6 +9531,106 @@ function _isCuotaDup(baseDesc,cuotaNum,date,amount,aid){
 }
 
 })();
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDkJzAQW2QyZp64Lk5gNmw0N-Bk1FWBMxU",
+  authDomain: "money-flow-1d801.firebaseapp.com",
+  projectId: "money-flow-1d801",
+  storageBucket: "money-flow-1d801.firebasestorage.app",
+  messagingSenderId: "38376727604",
+  appId: "1:38376727604:web:5123ddeef97a2ff655d661"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+let _docRef = null, _unsub = null, _localStamp = 0, _pushTimer = null, _applyingRemote = false;
+
+function _setStatus(t){ const e=document.getElementById('cloud-status'); if(e) e.textContent=t; }
+function _setUI(loggedIn){
+  const lin=document.getElementById('cloud-login-btn');
+  const lout=document.getElementById('cloud-logout-btn');
+  const act=document.getElementById('cloud-actions');
+  if(lin) lin.style.display = loggedIn ? 'none':'block';
+  if(lout) lout.style.display = loggedIn ? 'block':'none';
+  if(act) act.style.display = loggedIn ? 'flex':'none';
+}
+
+window.cloudLogin = async function(){
+  try { await signInWithPopup(auth, provider); }
+  catch(e){
+    if(e && (e.code==='auth/popup-blocked' || e.code==='auth/operation-not-supported-in-this-environment' || e.code==='auth/cancelled-popup-request' || e.code==='auth/popup-closed-by-user')){
+      try { await signInWithRedirect(auth, provider); } catch(e2){ _setStatus('Error al iniciar sesión: '+(e2.code||e2.message||e2)); }
+    } else { _setStatus('Error al iniciar sesión: '+(e.code||e.message||e)); }
+  }
+};
+window.cloudLogout = async function(){ try { await signOut(auth); } catch(e){} };
+
+window.cloudPushOverwrite = async function(){
+  if(!_docRef){ _setStatus('Iniciá sesión primero.'); return; }
+  if(!confirm('Esto va a PISAR los datos de la nube con los de ESTE equipo. ¿Continuar?')) return;
+  try {
+    const json = window.cloudGetStateJSON(); const ts = Date.now();
+    await setDoc(_docRef, { json: json, updatedAt: ts });
+    _localStamp = ts;
+    _setStatus('Subido ✓ — este equipo es ahora la fuente ('+new Date(ts).toLocaleString()+').');
+  } catch(e){ _setStatus('Error al subir: '+(e.code||e.message||e)); }
+};
+
+window.cloudPullOverwrite = async function(){
+  if(!_docRef){ _setStatus('Iniciá sesión primero.'); return; }
+  if(!confirm('Esto va a PISAR los datos de ESTE equipo con los de la nube. ¿Continuar?')) return;
+  try {
+    const snap = await getDoc(_docRef);
+    if(!snap.exists() || !snap.data().json){ _setStatus('La nube está vacía todavía.'); return; }
+    _applyingRemote = true;
+    const ok = window.cloudApplyStateJSON(snap.data().json);
+    _applyingRemote = false;
+    _localStamp = snap.data().updatedAt || Date.now();
+    _setStatus(ok ? ('Bajado ✓ ('+new Date(_localStamp).toLocaleString()+').') : 'Error al aplicar los datos.');
+  } catch(e){ _applyingRemote=false; _setStatus('Error al bajar: '+(e.code||e.message||e)); }
+};
+
+window._cloudNotifyLocalChange = function(){
+  if(!_docRef || _applyingRemote) return;
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(async function(){
+    try {
+      const json = window.cloudGetStateJSON(); const ts = Date.now();
+      await setDoc(_docRef, { json: json, updatedAt: ts });
+      _localStamp = ts;
+    } catch(e){ /* sin conexión: queda guardado en localStorage */ }
+  }, 1200);
+};
+
+getRedirectResult(auth).catch(function(){});
+
+onAuthStateChanged(auth, function(user){
+  if(_unsub){ _unsub(); _unsub=null; }
+  if(!user){ _docRef=null; _setUI(false); _setStatus('Iniciá sesión para sincronizar entre dispositivos.'); return; }
+  _docRef = doc(db, 'gastos', user.uid);
+  _setUI(true);
+  _setStatus('Conectado como '+(user.email||user.uid)+'. Sincronizando…');
+  _unsub = onSnapshot(_docRef, function(snap){
+    if(!snap.exists() || !snap.data().json){
+      _setStatus('Conectado como '+(user.email||user.uid)+'. La nube está vacía — tocá "Subir este equipo" para enviar tus datos.');
+      return;
+    }
+    const d = snap.data(); const ts = d.updatedAt || 0;
+    if(ts && ts !== _localStamp){
+      _applyingRemote = true;
+      const ok = window.cloudApplyStateJSON(d.json);
+      _applyingRemote = false;
+      if(ok){ _localStamp = ts; _setStatus('Sincronizado ✓ ('+new Date(ts).toLocaleString()+').'); }
+    }
+  }, function(err){ _setStatus('Error de sync: '+(err.code||err.message||err)); });
+});
 </script>
 </body>
 </html>
