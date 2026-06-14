@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.96';
+const APP_VERSION = 'v1.97';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -7772,7 +7772,8 @@ function _detectAccounts(bank, card) {
     if(a.currency==='USD'&&!usdId) usdId=a.id;
   });
   if(!arsId){var fc=accts.find(function(a){return a.type==='credit'&&a.currency==='ARS';});arsId=fc?fc.id:((accts[0]||{}).id||'');}
-  if(!usdId){var fd=accts.find(function(a){return a.type==='credit'&&a.currency==='USD';});usdId=fd?fd.id:'';}
+  // USD: fallback solo a una cuenta del MISMO banco (no contaminar con tarjetas de otra marca/banco)
+  if(!usdId){var fd=accts.find(function(a){return a.type==='credit'&&a.currency==='USD'&&(!bank||(a.bank&&a.bank.toLowerCase()===bank.toLowerCase()));});usdId=fd?fd.id:'';}
   return {arsId:arsId,usdId:usdId};
 }
 
@@ -8915,12 +8916,19 @@ window.impConfirm = function() {
       }
     }
   }
-  // Aprendizaje: guardar el número de cuenta detectado en la(s) tarjeta(s) destino (solo si no lo tenían)
+  // Aprendizaje: guardar el número de cuenta detectado SOLO en cuentas que coincidan
+  // con el banco+marca detectados (evita contaminar cuentas fallback, ej: una Visa u$s
+  // que _detectAccounts eligió como USD para un resumen Master).
   if (IMP.detectedNro) {
+    var _lnBank=(IMP.currentBank||'').toLowerCase();
+    var _lnCard=String(IMP.cardBrand||'').toLowerCase();
     [IMP.accountIdARS, IMP.accountIdUSD].forEach(function(aid){
       if(!aid) return;
       var a=state.accounts.find(function(x){return x.id===aid;});
-      if(a && a.type==='credit' && !a.nroCuenta) a.nroCuenta = IMP.detectedNro;
+      if(!a || a.type!=='credit' || a.nroCuenta) return;
+      var bankOk=!_lnBank || (a.bank && a.bank.toLowerCase()===_lnBank);
+      var cardOk=!_lnCard || (a.cardBrand && a.cardBrand.toLowerCase()===_lnCard);
+      if(bankOk && cardOk) a.nroCuenta = IMP.detectedNro;
     });
   }
   saveState(); _closeImp(); renderMonths(); updateAccountHeader(); renderConfig();
