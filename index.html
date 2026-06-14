@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.98';
+const APP_VERSION = 'v2.03';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -2678,7 +2678,8 @@ function applyObsSuggestion(txId) {
   formState.type     = t.type || formState.type;
   formState.catCode  = t.catCode || formState.catCode;
   formState.subcat   = t.subcat  || '';
-  formState.accountId= t.accountId || formState.accountId;
+  // Cuenta: NO se pisa con la del movimiento sugerido. Prevalece la cuenta
+  // desde la que se está agregando (ya capturada por syncFormState).
   formState.nature   = t.nature  || formState.nature;
   // Si cambió el tipo, sincronizar catCode al grupo correcto
   if(formState.type==='income') formState.catCode='INGR';
@@ -4454,7 +4455,8 @@ function openCatModal(code) {
         <label>Código (4 letras)</label>
         <input type="text" id="cc-code" value="${c?.code||''}" placeholder="VIAJ" maxlength="4"
           style="font-family:var(--mono);text-transform:uppercase;font-weight:600"
-          oninput="this.value=this.value.toUpperCase().slice(0,4)" ${isEdit?'readonly':''}/>
+          oninput="this.value=this.value.toUpperCase().slice(0,4)"/>
+        ${isEdit?'<div style="font-size:10px;color:var(--text3);margin-top:4px">Si cambiás el código, se actualizan todos los movimientos de esta categoría.</div>':''}
       </div>
       <div class="field" style="margin-bottom:${isEdit?'10px':'16px'}">
         <label>Color</label>
@@ -4516,24 +4518,46 @@ function selectCatColor(color) {
 function inlineEditSubcat(catCode, idx) {
   const cat=state.categories.find(c=>c.code===catCode);
   if(!cat) return;
-  const name=prompt('Nuevo nombre:',cat.subcats[idx]);
+  const oldName=cat.subcats[idx];
+  const name=prompt('Nuevo nombre:',oldName);
   if(!name) return;
-  cat.subcats[idx]=name.trim(); saveState(); openCatModal(catCode);
+  const newName=name.trim();
+  if(!newName || newName===oldName) return;
+  cat.subcats[idx]=newName;
+  // Cascada: actualizar movimientos ya ingresados con la subcategoría vieja
+  let n=0;
+  state.txs.forEach(t=>{ if(t.catCode===catCode && t.subcat===oldName){ t.subcat=newName; t.updatedAt=Date.now(); n++; } });
+  // Cascada: actualizar el aprendizaje de importación que apunte a la subcat vieja
+  if(state.importLearning){ Object.keys(state.importLearning).forEach(k=>{ const e=state.importLearning[k]; if(e && e.catCode===catCode && e.subcat===oldName) e.subcat=newName; }); }
+  saveState(); openCatModal(catCode);
+  showToast(n>0?('Subcategoría actualizada · '+n+' movimiento'+(n!==1?'s':'')):'Subcategoría actualizada');
 }
 function saveCat(code) {
   const newCode=document.getElementById('cc-code').value.trim().toUpperCase();
   const color=document.getElementById('cc-color').value;
   const iconId=document.getElementById('cc-icon')?.value || CAT_ICON_DEFAULT[newCode] || 'box';
   if(!newCode||newCode.length!==4) { showToast('El código debe tener 4 letras'); return; }
+  let _renN=-1;
   if(code) {
     const c=state.categories.find(c=>c.code===code);
-    if(c) Object.assign(c,{color,iconId,updatedAt:Date.now()});
+    if(!c){ closeModal(); return; }
+    if(newCode!==code){
+      // Categorías especiales no se pueden renombrar (la app depende de su código)
+      if(code==='INGR'||code==='OTRO'||code===CAT_FALLBACK_CODE){ showToast('Esta categoría no se puede renombrar'); return; }
+      if(state.categories.find(x=>x.code===newCode)){ showToast('Ese código ya existe'); return; }
+      // Cascada: actualizar movimientos y aprendizaje con el código viejo
+      _renN=0;
+      state.txs.forEach(t=>{ if(t.catCode===code){ t.catCode=newCode; t.updatedAt=Date.now(); _renN++; } });
+      if(state.importLearning){ Object.keys(state.importLearning).forEach(k=>{ const e=state.importLearning[k]; if(e&&e.catCode===code) e.catCode=newCode; }); }
+      c.code=newCode;
+    }
+    Object.assign(c,{color,iconId,updatedAt:Date.now()});
   } else {
     if(state.categories.find(c=>c.code===newCode)) { showToast('Ese código ya existe'); return; }
     state.categories.push({code:newCode,emoji:'📌',color,iconId,subcats:[],updatedAt:Date.now()});
   }
   saveState(); closeModal(); renderConfig();
-  showToast(code?'Categoría actualizada':'Categoría creada');
+  showToast(!code?'Categoría creada':(_renN>=0?('Categoría renombrada · '+_renN+' movimiento'+(_renN!==1?'s':'')):'Categoría actualizada'));
 }
 function deleteCat(code) {
   if(code==='OTRO'||code===CAT_FALLBACK_CODE) { showToast('Esta categoría no se puede eliminar'); return; }
@@ -5671,7 +5695,7 @@ function openSearch() {
       </button>
     </div>
     <div style="padding:0 16px 12px;flex-shrink:0">
-      <input type="text" id="search-input" placeholder="Descripción, categoría, subcategoría..."
+      <input type="text" id="search-input" placeholder="Descripción, categoría, monto, cuenta..."
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:14px;font-family:var(--font);color:var(--text);outline:none"
         oninput="runSearch(this.value)" autofocus/>
     </div>
@@ -5686,11 +5710,13 @@ function runSearch(q) {
   if(!el) return;
   const query = q.trim().toLowerCase();
   if(!query) { el.innerHTML = ''; return; }
+  const qDigits = query.replace(/[^0-9]/g,''); // dígitos del monto buscado (ignora . , $ espacios)
   const results = state.txs.filter(t =>
     t.obs?.toLowerCase().includes(query) ||
     t.subcat?.toLowerCase().includes(query) ||
     t.catCode?.toLowerCase().includes(query) ||
-    state.accounts.find(a=>a.id===t.accountId)?.name?.toLowerCase().includes(query)
+    state.accounts.find(a=>a.id===t.accountId)?.name?.toLowerCase().includes(query) ||
+    (qDigits.length>0 && String(t.amount).replace(/[^0-9]/g,'').includes(qDigits))
   ).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 50);
 
   if(!results.length) {
@@ -8527,10 +8553,13 @@ function _buildRows(parsed) {
     // Si la cuenta asignada es USD pero la moneda quedó ARS, corregir
     var aidAcct=state.accounts.find(function(a){return a.id===aid;});
     if(aidAcct&&aidAcct.currency==='USD'&&currency==='ARS') currency='USD';
-    // Aplicar aprendizaje
+    // Aplicar aprendizaje (categoría/subcategoría/naturaleza). NO la cuenta:
+    // en un resumen la cuenta la define el propio resumen (cuenta detectada),
+    // no el comercio. Aplicar learned.accountId mandaba movimientos a la tarjeta
+    // de otro banco si ese comercio se había importado antes en otra cuenta.
     var norm=_normDesc(p.description), learned=learning[norm];
     var catCode,subcat,nature='variable';
-    if(learned){ catCode=learned.catCode; subcat=learned.subcat||''; if(learned.accountId)aid=learned.accountId; if(learned.nature)nature=learned.nature; }
+    if(learned){ catCode=learned.catCode; subcat=learned.subcat||''; if(learned.nature)nature=learned.nature; }
     else{ var sg=(IMP.isBankStatement?_suggestCatBank(p.description):null)||_suggestCat(p.description); catCode=sg.catCode; subcat=sg.subcat||''; }
     // Detectar cuotas
     var cuota=_parseCuota(p.description);
