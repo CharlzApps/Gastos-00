@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.94';
+const APP_VERSION = 'v1.95';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8602,18 +8602,15 @@ function _renderReview() {
   var cardOpts=[['','— Cualquiera —'],['Visa','Visa'],['Master','Mastercard'],['Amex','Amex']]
     .map(function(c){return '<option value="'+c[0]+'"'+(c[0]===currentCard?' selected':'')+'>'+c[1]+'</option>';}).join('');
 
-  // ── Header: banco + tarjeta + totales ─────────────────────────
+  // ── Header: banco + tarjeta (detectados, solo lectura) + totales ─
+  var _cardLbl={Visa:'Visa',Master:'Mastercard',Mastercard:'Mastercard',Amex:'Amex'}[currentCard]||currentCard;
+  var _detLine=(currentBank||'—')+((!IMP.isBankStatement&&_cardLbl)?(' · '+_cardLbl):'');
   var acctBlk=''
-    +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'
-    +'<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;width:56px;flex-shrink:0">Banco</span>'
-    +'<select style="flex:1;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:inherit" onchange="impSetBank(this.value)">'+bankOpts+'</select>'
+    +'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:10px;margin-bottom:8px">'
+    +'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.6" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>'
+    +'<div style="flex:1;min-width:0"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">'+(IMP.isBankStatement?'Cuenta detectada':'Tarjeta detectada')+'</div>'
+    +'<div style="font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(_detLine)+'</div></div>'
     +'</div>'
-    +(IMP.isBankStatement ? '' :
-      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
-      +'<span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;width:56px;flex-shrink:0">Tarjeta</span>'
-      +'<select style="flex:1;font-size:12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:4px 8px;color:var(--text);font-family:inherit" onchange="impSetCard(this.value)">'+cardOpts+'</select>'
-      +'</div>'
-    )
     // Totales (IDs para actualización dinámica al tildar/destildar)
     +'<div style="display:flex;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:10px;align-items:center">'
     +'<div style="flex:1">'
@@ -8995,15 +8992,15 @@ function _renderImportConfirm(onContinue){
     +'<div style="padding:18px 18px 6px">'
     +'<div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:2px">Confirmá la tarjeta</div>'
     +'<div style="text-align:center;font-size:11px;color:var(--text3);margin-bottom:18px">'+_esc(IMP.fileName||'')+(nroInfo?' · '+nroInfo:'')+'</div>'
-    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'
-    +'<span style="width:36px;height:36px;border-radius:50%;background:'+clr+';display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">'+bankSvg+'</span>'
-    +'<div style="flex:1"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Banco</div>'
-    +'<select id="_imp_cf_bank" '+selStyle+'>'+bankOpts+'</select></div>'
+    +'<div style="display:flex;gap:10px;margin-bottom:6px">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="width:24px;height:24px;border-radius:50%;background:'+clr+';display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg></span><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Banco</span></div>'
+    +'<select id="_imp_cf_bank" style="width:100%;box-sizing:border-box;font-size:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 8px;color:var(--text);font-family:inherit">'+bankOpts+'</select>'
     +'</div>'
-    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
-    +'<span style="width:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text3)">'+cardSvg+'</span>'
-    +'<div style="flex:1"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Tarjeta</div>'
-    +'<select id="_imp_cf_card" '+selStyle+'>'+cardOpts+'</select></div>'
+    +'<div style="flex:1;min-width:0">'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--text3);flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Tarjeta</span></div>'
+    +'<select id="_imp_cf_card" style="width:100%;box-sizing:border-box;font-size:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:9px 8px;color:var(--text);font-family:inherit">'+cardOpts+'</select>'
+    +'</div>'
     +'</div>'
     +'</div>'
     +'<div class="imp-footer">'
