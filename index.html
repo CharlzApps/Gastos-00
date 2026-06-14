@@ -661,7 +661,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v1.86';
+const APP_VERSION = 'v1.87';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1523,8 +1523,9 @@ function renderMonthSummary() {
 
 function openAddQuick() {
   const acctId = state.currentAccountId;
-  if(!acctId) return;
-  openAddModal({accountId: acctId, lockAccount: true});
+  // Sugerir la cuenta actual pre-seleccionada, pero permitir cambiarla (sin lockAccount)
+  if(!acctId) { openAddModal({}); return; }
+  openAddModal({accountId: acctId});
 }
 function openAddQuickFromGroup() {
   // Abre el modal directamente sin bloquear la cuenta — el usuario la elige dentro del modal
@@ -1785,7 +1786,7 @@ function renderWizard() {
       const bankIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>`;
       bodyHtml = `
         <div class="wizard-summary">
-          <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${s.amount}</span></div>
+          <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${wizardFormatDisplay(s.amount)}</span></div>
           <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
         </div>
         <div class="wizard-grid">
@@ -1863,7 +1864,7 @@ function renderWizard() {
     const perCuota = s.cuotas > 1 ? Math.round(amt / s.cuotas) : amt;
     bodyHtml = `
       <div class="wizard-summary">
-        <div class="wizard-sum-row"><span>Gasto</span><span class="wizard-sum-val" style="color:var(--red)">${sym} ${s.amount}</span></div>
+        <div class="wizard-sum-row"><span>Gasto</span><span class="wizard-sum-val" style="color:var(--red)">${sym} ${wizardFormatDisplay(s.amount)}</span></div>
         <div class="wizard-sum-row"><span>Cuenta</span><span class="wizard-sum-val">${acct?.name||''}</span></div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 4px">
@@ -2132,7 +2133,7 @@ function renderModal(isEdit) {
             placeholder="0"
             inputmode="decimal"
             style="flex:1;font-size:22px;font-family:var(--mono);font-weight:300;letter-spacing:-0.5px;text-align:right"
-            oninput="(function(el){const raw=el.value.replace(/\./g,'').replace(',','.');const n=parseFloat(raw);el.value=isNaN(n)?el.value.replace(/[^0-9,]/g,''):numFmt(n);const c=el.value.length;el.setSelectionRange(c,c)})(this)"
+            oninput="handleAmountInput(this)"
             onblur="formatAmountField(this)"/>
         </div>
       </div>
@@ -2516,6 +2517,38 @@ function addSourceInline() {
   saveState();
   formState.accountId = id;
   renderModal(!!editingTxId);
+}
+function handleAmountInput(el) {
+  // Formatea miles mientras se escribe, preservando la posición del cursor.
+  // Permite escribir un decimal con coma (hasta 2 decimales).
+  const oldVal = el.value;
+  const sel = el.selectionStart || 0;
+  // Contar caracteres significativos (dígitos + coma) antes del cursor
+  let sigBefore = 0;
+  for(let i = 0; i < sel; i++) {
+    if(/[0-9,]/.test(oldVal[i])) sigBefore++;
+  }
+  // Sanitizar: solo dígitos y una sola coma
+  let cleaned = oldVal.replace(/[^0-9,]/g, '');
+  const ci = cleaned.indexOf(',');
+  if(ci >= 0) {
+    cleaned = cleaned.slice(0, ci + 1) + cleaned.slice(ci + 1).replace(/,/g, '');
+  }
+  let intPart = cleaned, decPart;
+  if(ci >= 0) { intPart = cleaned.slice(0, ci); decPart = cleaned.slice(ci + 1); }
+  // Quitar ceros a la izquierda (pero dejar un 0 si es lo único)
+  intPart = intPart.replace(/^0+(?=\d)/, '');
+  const intFmt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  let result = intFmt;
+  if(ci >= 0) result = intFmt + ',' + (decPart !== undefined ? decPart.slice(0, 2) : '');
+  el.value = result;
+  // Restaurar cursor contando los mismos caracteres significativos
+  let pos = 0, count = 0;
+  while(pos < result.length && count < sigBefore) {
+    if(/[0-9,]/.test(result[pos])) count++;
+    pos++;
+  }
+  el.setSelectionRange(pos, pos);
 }
 function formatAmountField(input) {
   const n = parseAmountStr(input.value);
