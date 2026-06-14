@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.07';
+const APP_VERSION = 'v2.08';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1431,7 +1431,19 @@ function renderMonthPage(pageId, y, m) {
   // Acumulado del mes hasta cada día (de más viejo a más nuevo)
   const ascSorted = Object.keys(byDay).sort((a,b)=>a.localeCompare(b));
   const cumByDay = {};
+  // Saldo de apertura: las cuentas que NO son tarjeta de crédito arrastran el saldo
+  // acumulado de los meses anteriores. Las de crédito reinician por período.
+  const _balAcct = state.currentAccountId ? state.accounts.find(a=>a.id===state.currentAccountId) : null;
+  const _isCreditView = !!(_balAcct && _balAcct.type==='credit');
+  const _monthStart = y + '-' + String(m+1).padStart(2,'0') + '-01';
   let _running = 0;
+  if(!_isCreditView){
+    _running = state.txs.reduce((s,t)=>{
+      if(!t.date || t.date >= _monthStart) return s;
+      if(state.currentAccountId && t.accountId!==state.currentAccountId) return s;
+      return s + (t.type==='income' ? t.amount : (t.type==='expense' ? -t.amount : 0));
+    }, 0);
+  }
   ascSorted.forEach(ds => {
     const dts = byDay[ds];
     _running += dts.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0)
