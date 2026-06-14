@@ -679,7 +679,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.06';
+const APP_VERSION = 'v2.07';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1685,7 +1685,8 @@ function saveCreditDate(monthKey, field, value) {
   if (!acct.creditDates[monthKey]) acct.creditDates[monthKey] = {};
   acct.creditDates[monthKey][field] = value;
   saveState();
-  renderCreditDatesBar();
+  // No re-renderizar la barra acá: recrear el input mientras se edita la fecha
+  // saca el foco y no deja completar el año. El input ya refleja el valor tipeado.
 }
 
 // ═══════════════════════════════════════════
