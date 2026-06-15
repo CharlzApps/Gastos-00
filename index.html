@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.22';
+const APP_VERSION = 'v2.23';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -7752,7 +7752,7 @@ _css.textContent = [
   '.imp-sheet{background:var(--bg2);border-radius:20px 20px 0 0;width:100%;max-width:430px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden}',
   '.imp-body{padding:0 16px;overflow-y:auto;flex:1}',
   '.imp-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0;background:var(--bg2)}',
-  '.imp-history-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:6px}',
+  '.imp-history-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px}',
   '.imp-col-btn{flex:1;padding:8px 4px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);font-size:11px;color:var(--text2);cursor:pointer;text-align:center;transition:all 0.15s;font-family:var(--font)}',
   '.imp-col-btn.sel{background:var(--bg4);border-color:var(--accent);color:var(--accent)}',
 ].join('');
@@ -8031,8 +8031,8 @@ function _renderImportSection() {
     histHtml += history.map(function(h) {
       var acct = accts.find(function(a){ return a.id === h.accountId; });
       return '<div class="imp-history-row">'
-        + '<div style="width:32px;height:32px;border-radius:8px;background:var(--bg4);display:flex;align-items:center;justify-content:center;flex-shrink:0">'
-        + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>'
+        + '<div style="width:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">'
+        + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>'
         + '</div>'
         + '<div style="flex:1;min-width:0">'
         + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(h.fileName) + '</div>'
@@ -8054,11 +8054,11 @@ function _renderImportSection() {
   }
 
   el.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px">'
-    + '<button class="add-account-btn" onclick="impOpenFile(\'pdf\')" style="border-style:solid;color:var(--blue);border-color:rgba(32,96,192,0.4);background:rgba(32,96,192,0.04)">'
-    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+    + '<button class="add-account-btn" onclick="impOpenFile(\'pdf\')" style="border-style:solid;color:var(--text);border-color:var(--border);background:transparent">'
+    + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
     + ' Importar PDF de resumen</button>'
-    + '<button class="add-account-btn" onclick="impOpenFile(\'csv\')" style="border-style:solid;color:var(--green);border-color:rgba(26,122,74,0.4);background:rgba(26,122,74,0.04)">'
-    + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>'
+    + '<button class="add-account-btn" onclick="impOpenFile(\'csv\')" style="border-style:solid;color:var(--text);border-color:var(--border);background:transparent">'
+    + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>'
     + ' Importar CSV / Excel</button>'
     + '<input type="file" id="_imp_fpdf" accept=".pdf" style="display:none" onchange="impHandleFile(event,\'pdf\')">'
     + '<input type="file" id="_imp_fcsv" accept=".csv,.xlsx,.xls" style="display:none" onchange="impHandleFile(event,\'csv\')">'
