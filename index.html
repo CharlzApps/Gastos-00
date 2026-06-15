@@ -340,7 +340,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   <div class="header" id="main-header">
     <div class="header-top">
       <div class="account-selector" id="account-selector" onclick="showAccountPicker()">
-        <div id="acct-dot" style="width:22px;height:22px;border-radius:50%;background:var(--bg3);color:var(--text2);display:flex;align-items:center;justify-content:center;flex-shrink:0"></div>
+        <div id="acct-dot" style="width:40px;height:40px;border-radius:50%;background:var(--bg3);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0"></div>
         <div style="flex:1;min-width:0">
           <div class="account-name" id="acct-name">Todas las cuentas</div>
           <div class="account-balance" id="acct-bal"></div>
@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.14';
+const APP_VERSION = 'v2.15';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -5937,7 +5937,7 @@ function updateAccountHeader() {
   if(!acctId || acctId.indexOf('__group_')===0) {
     var cur = acctId ? acctId.slice(8,-2) : (getVisibleCurrencies()[0]||'ARS');
     var ids = getGroupAccounts(cur).map(function(a){return a.id;});
-    dot.innerHTML = ACCT_ICONS['other'].svg.replace('width="17" height="17"','width="13" height="13"');
+    dot.innerHTML = ACCT_ICONS['other'].svg.replace('width="17" height="17"','width="26" height="26"');
     name.textContent = 'Cuentas en ' + cur;
     var _tdyG = todayStr();
     var _creIds = {}; state.accounts.forEach(function(a){ if(a.type==='credit') _creIds[a.id]=1; });
@@ -5958,7 +5958,7 @@ function updateAccountHeader() {
   } else {
     var ac = state.accounts.find(function(a){return a.id===acctId;});
     if(ac) {
-      dot.innerHTML = getAcctIcon(ac).replace('width="17" height="17"','width="13" height="13"');
+      dot.innerHTML = getAcctIcon(ac).replace('width="17" height="17"','width="26" height="26"');
       name.textContent = ac.name;
       // Cuentas no-crédito: saldo "actual" = hasta hoy (no contar movimientos con fecha futura),
       // así coincide con el acumulado del último movimiento. Crédito: todo (incl. cuotas futuras).
