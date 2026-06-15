@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.19';
+const APP_VERSION = 'v2.20';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -3914,8 +3914,8 @@ function renderConfig() {
     return `
     <div>
       <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="openCatDetailModal('${c.code}')">
-        <div style="width:32px;height:32px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
+        <div style="width:32px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:baseline;gap:8px">
@@ -4989,13 +4989,10 @@ function _acctCardBg(a) {
 }
 function _acctIconDiv(a, px) {
   px = px || 30;
-  var bg  = _acctCardBg(a) || 'var(--bg4)';
-  var clr = /master/i.test(a.name||'')||a.cardBrand==='Master' ? 'var(--orange)'
-          : /visa/i.test(a.name||'')||a.cardBrand==='Visa'     ? 'var(--blue)'
-          : 'var(--text2)';
-  var isz = Math.round(px * 0.55);
+  // Plano, sin círculo: ícono del tipo en el color de la app
+  var isz = Math.round(px * 0.72);
   var ico = getAcctIcon(a).replace(/width="\d+" height="\d+"/g, 'width="'+isz+'" height="'+isz+'"');
-  return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;background:'+bg+';color:'+clr+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+ico+'</div>';
+  return '<div style="width:'+px+'px;height:'+px+'px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">'+ico+'</div>';
 }
 
 function openAccountModal(id) {
