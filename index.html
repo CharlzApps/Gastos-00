@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.15';
+const APP_VERSION = 'v2.16';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8778,18 +8778,21 @@ function _renderReview() {
       +'<div style="font-size:14px;font-weight:600;color:var(--text)">'+_esc(_cardLbl)+'</div>'
       +'</div>')
     +'</div>'
-    // Totales: Detectado (todo lo encontrado) + Seleccionados (lo que se importa)
-    +'<div style="background:var(--bg3);border-radius:10px;padding:8px 10px">'
-    +'<div style="display:flex;gap:8px;align-items:center;padding-bottom:7px;margin-bottom:7px;border-bottom:1px solid var(--border)">'
-    +'<div style="flex:1"><div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Detectado $</div><div id="imp-det-ars" style="font-size:15px;font-weight:700;font-family:var(--mono)">'+numFmt(detARS)+'</div></div>'
-    +'<div style="flex:1"><div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Detectado U$S</div><div id="imp-det-usd" style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--blue)">'+(detUSD!==0?numFmt(detUSD):'—')+'</div></div>'
+    // Totales en 2 pills: Detectados (todo lo encontrado) + Seleccionados (lo que se importa)
+    +'<div style="display:flex;gap:8px">'
+    +'<div style="flex:1;background:var(--bg3);border-radius:12px;padding:9px 12px">'
+    +'<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Detectados</div>'
+    +'<div style="font-size:16px;font-weight:700;font-family:var(--mono)">$ <span id="imp-det-ars">'+numFmt(detARS)+'</span></div>'
+    +'<div style="font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text2);margin-top:1px">U$S <span id="imp-det-usd">'+(detUSD!==0?numFmt(detUSD):'—')+'</span></div>'
     +'</div>'
-    +'<div style="display:flex;gap:8px;align-items:center">'
-    +'<div style="flex:1"><div id="imp-lbl-ars" style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Seleccionados $</div><div id="imp-total-ars" style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--green)">'+numFmt(selARS)+'</div></div>'
-    +'<div style="flex:1"><div id="imp-lbl-usd" style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1px">Seleccionados U$S</div><div id="imp-total-usd" style="font-size:15px;font-weight:700;font-family:var(--mono);color:var(--blue)">'+(selUSD>0?numFmt(selUSD):'—')+'</div></div>'
-    +(dupCnt?'<div style="font-size:10px;color:var(--text3);line-height:1.4;text-align:right;flex-shrink:0">incl.<br><strong>'+dupCnt+'</strong> ya reg.</div>':'')
+    +'<div style="flex:1;background:'+appColorVal()+'14;border-radius:12px;padding:9px 12px">'
+    +'<div id="imp-lbl-ars" style="font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Seleccionados</div>'
+    +'<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--accent)">$ <span id="imp-total-ars">'+numFmt(selARS)+'</span></div>'
+    +'<div id="imp-lbl-usd" style="font-size:12px;font-weight:600;font-family:var(--mono);color:var(--accent);margin-top:1px">U$S <span id="imp-total-usd">'+(selUSD>0?numFmt(selUSD):'—')+'</span></div>'
     +'</div>'
-    +'</div>';
+    +'</div>'
+    +(dupCnt?'<div style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right">incl. <strong>'+dupCnt+'</strong> ya registrados</div>':'')
+    +'';
 
   // ── Filas ──────────────────────────────────────────────────────
   function _rowHtml(row) {
@@ -8871,11 +8874,12 @@ function _renderReview() {
     +'<div class="imp-sheet" onclick="event.stopPropagation()">'
     +'<div class="modal-handle"></div>'
     +'<div style="padding:4px 16px 10px;border-bottom:1px solid var(--border);flex-shrink:0">'
-    // Título + cerrar
-    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+    // Título + ícono grande (color de la app) + cerrar
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+    +'<span style="width:40px;height:40px;border-radius:50%;background:'+appColorVal()+'14;color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(IMP.isBankStatement?ACCT_ICONS.account.svg:ACCT_ICONS.credit.svg).replace('width="17" height="17"','width="24" height="24"')+'</span>'
     +'<div style="flex:1">'
     +'<div style="font-size:15px;font-weight:600">Revisar movimientos</div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(IMP.isBankStatement?'📋 Extracto cuenta bancaria':'💳 Resumen tarjeta de crédito')+'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+(IMP.isBankStatement?'Extracto cuenta bancaria':'Resumen tarjeta de crédito')+'</div>'
     +'</div>'
     +'<span id="_imp_brain" style="font-size:18px;opacity:0;margin-right:4px;transition:none">🧠</span>'
     +'<button onclick="_closeImp()" style="border:none;background:none;cursor:pointer;color:var(--text3);padding:4px;display:flex;align-items:center;justify-content:center;border-radius:50%">'
@@ -8931,19 +8935,15 @@ window.impSetObs = function(idx,val){
 };
 
 function _impNatButtons(idx, activeNature){
-  // Orden: Fijo | Variable | Gusto
-  // Colores pastel: Fijo=naranja, Variable=celeste, Gusto=púrpura
-  var defs=[
-    {n:'fixed',    label:'Fijo',     activeBg:'#FFD9B3', activeColor:'#B85C00', activeBorder:'#FFB870'},
-    {n:'variable', label:'Variable', activeBg:'#B8E0FF', activeColor:'#1565A8', activeBorder:'#7EC8F5'},
-    {n:'pleasure', label:'Gusto',    activeBg:'#E0CCFF', activeColor:'#6A1FB5', activeBorder:'#C4A0F5'}
-  ];
+  // Fijo | Variable | Gusto — sin color propio: el de la app con transparencia
+  var defs=[{n:'fixed',label:'Fijo'},{n:'variable',label:'Variable'},{n:'pleasure',label:'Gusto'}];
+  var ac=appColorVal();
   return defs.map(function(d, i){
     var active=activeNature===d.n;
-    var bg=active?d.activeBg:'transparent';
-    var color=active?d.activeColor:'var(--text3)';
+    var bg=active?(ac+'22'):'transparent';
+    var color=active?'var(--accent)':'var(--text3)';
     var fw=active?'700':'400';
-    var border=active?('border-right:1px solid '+d.activeBorder+';border-left:1px solid '+d.activeBorder+';'):(i<2?'border-right:1px solid var(--border);':'');
+    var border=active?('border-right:1px solid '+ac+'55;border-left:1px solid '+ac+'55;'):(i<2?'border-right:1px solid var(--border);':'');
     return '<button onclick="impSetNature('+idx+',\''+d.n+'\')" style="flex:1;font-size:12px;padding:8px 4px;background:'+bg+';color:'+color+';font-weight:'+fw+';cursor:pointer;font-family:inherit;border:none;'+border+'min-height:34px;-webkit-tap-highlight-color:transparent;transition:background 0.15s">'+d.label+'</button>';
   }).join('');
 }
