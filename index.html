@@ -440,8 +440,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <!-- CONFIG TAB -->
     <div id="tab-config" style="flex:1;overflow-y:auto;display:none;">
       <!-- Config header -->
-      <div style="padding:16px 16px 8px;border-bottom:1px solid var(--border)">
+      <div style="padding:16px 16px 8px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:8px">
         <div style="font-size:18px;font-weight:600;letter-spacing:-0.3px">Configuración</div>
+        <span id="app-version-display" style="font-size:11px;color:var(--text3);font-family:var(--mono)"></span>
       </div>
 
       <!-- ACCORDION SECTIONS -->
@@ -632,7 +633,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         </div>
 
         <div style="padding:16px 0 4px;text-align:center">
-          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">App Gastos <span id="app-version-display"></span></span>
+          <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">App Gastos</span>
         </div>
 
       </div><!-- /config-accordion -->
@@ -679,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.08';
+const APP_VERSION = 'v2.09';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -5443,7 +5444,10 @@ function importData(event) {
 // ═══════════════════════════════════════════
 function openTransferModal(editGroupId) {
   const isEdit = !!editGroupId;
-  let fromId = getDefaultAccountId();
+  // Origen por defecto: la cuenta que estás viendo (si es una cuenta real); sino, la cuenta default
+  const _curId = state.currentAccountId;
+  const _curIsReal = _curId && _curId.indexOf('__group_')<0 && state.accounts.find(a=>a.id===_curId);
+  let fromId = _curIsReal ? _curId : getDefaultAccountId();
   let toId = state.accounts.find(a => a.id !== fromId)?.id || state.accounts[1]?.id || '';
   let amtOut = '', amtIn = '', obs = '', date = todayStr();
   let fromCur = 'ARS', toCur = 'ARS';
