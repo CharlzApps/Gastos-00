@@ -323,12 +323,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .add-inline button { padding: 7px 12px; background: var(--bg4); border: none; border-radius: var(--radius-sm); color: var(--text2); font-size: 12px; cursor: pointer; font-family: var(--font); }
 
 /* CONFIG ACCORDION */
-.cfg-section-wrap { border-bottom: 1px solid var(--border); }
+.cfg-section-wrap { border-bottom: 0.5px solid var(--border); }
 .cfg-section-wrap:last-child { border-bottom: none; }
-.cfg-section-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; transition: background 0.15s; user-select: none; }
+.cfg-section-header { display: flex; align-items: center; gap: 14px; padding: 15px 16px; cursor: pointer; transition: background 0.15s; user-select: none; }
 .cfg-section-header:active { background: var(--bg3); }
-.cfg-section-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
-.cfg-section-title { flex: 1; font-size: 15px; font-weight: 500; }
+.cfg-section-icon { width: 26px; height: 26px; border-radius: 0; background: transparent !important; color: var(--accent) !important; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+.cfg-section-title { flex: 1; font-size: 15px; font-weight: 500; color: var(--text); }
 .cfg-section-chevron { font-size: 20px; color: var(--text3); transition: transform 0.2s; line-height: 1; padding-right: 2px; }
 .cfg-section-chevron.open { transform: rotate(90deg); }
 .cfg-section-body { padding: 0 16px 16px; }
@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.18';
+const APP_VERSION = 'v2.19';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
