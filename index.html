@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.13';
+const APP_VERSION = 'v2.14';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4748,14 +4748,22 @@ function openBankModal(id) {
         <div style="font-size:10px;color:var(--text3);margin-top:4px">Figura en el resumen de la tarjeta. Sirve para reconocer automáticamente de qué banco es al importar.</div>
       </div>
       <div class="field" style="margin-bottom:14px">
-        <label>Logo (URL de imagen)</label>
+        <label>Logo</label>
         <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
           <div id="bank-logo-preview" style="width:48px;height:48px;border-radius:50%;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3)">
-            ${b?.logoUrl ? `<img src="${b.logoUrl}" width="48" height="48" style="object-fit:contain;border-radius:50%" onerror="this.parentElement.innerHTML='Sin logo'">` : 'Sin logo'}
+            ${b?.logoUrl ? `<img src="${b.logoUrl}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='Sin logo'">` : 'Sin logo'}
           </div>
           <div style="flex:1">
-            <input type="url" id="bank-logo-url" value="${b?.logoUrl||''}" placeholder="https://..." oninput="previewBankLogo(this.value)" style="font-size:12px"/>
-            <div style="font-size:10px;color:var(--text3);margin-top:4px">Pegá la URL de cualquier imagen PNG/SVG del logo</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <label class="add-account-btn" style="margin:0;height:34px;width:auto;font-size:12px;cursor:pointer;padding:0 12px;border-style:solid;border-color:var(--border);color:var(--text)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,5 17,10"/><line x1="12" y1="5" x2="12" y2="15"/></svg>
+                Subir imagen
+                <input type="file" accept="image/*" style="display:none" onchange="bankLogoUpload(this)"/>
+              </label>
+              <button type="button" onclick="bankLogoClear()" style="height:34px;font-size:12px;border:1px solid var(--border);background:var(--bg3);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;padding:0 10px">Quitar</button>
+            </div>
+            <input type="url" id="bank-logo-url" value="${b?.logoUrl||''}" placeholder="o pegá una URL https://..." oninput="previewBankLogo(this.value)" style="font-size:12px;margin-top:6px"/>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Subí una imagen (se achica y recorta al círculo) o pegá una URL.</div>
           </div>
         </div>
       </div>
@@ -4786,11 +4794,41 @@ function previewBankLogo(url) {
   const prev = document.getElementById('bank-logo-preview');
   if(!prev) return;
   if(url) {
-    prev.innerHTML = `<img src="${url}" width="48" height="48" style="object-fit:contain;border-radius:50%" onerror="this.parentElement.innerHTML='<span style=font-size:11px;color:var(--red)>Error</span>'">`;
+    prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<span style=font-size:11px;color:var(--red)>Error</span>'">`;
   } else {
     prev.innerHTML = '<span style="font-size:11px;color:var(--text3)">Sin logo</span>';
   }
 }
+
+window.bankLogoUpload = function(input){
+  var f = input && input.files && input.files[0];
+  if(!f) return;
+  if(!/^image\//.test(f.type)) { showToast('Elegí un archivo de imagen'); return; }
+  var rd = new FileReader();
+  rd.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var size = 96; // achicar a 96px, recorte centrado (cover)
+      var cv = document.createElement('canvas'); cv.width = size; cv.height = size;
+      var ctx = cv.getContext('2d');
+      var scale = Math.max(size/img.width, size/img.height);
+      var w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+      var data;
+      try { data = cv.toDataURL('image/png'); } catch(err){ showToast('No se pudo procesar la imagen'); return; }
+      var urlInput = document.getElementById('bank-logo-url');
+      if(urlInput) urlInput.value = data;
+      previewBankLogo(data);
+    };
+    img.onerror = function(){ showToast('No se pudo leer la imagen'); };
+    img.src = e.target.result;
+  };
+  rd.readAsDataURL(f);
+};
+window.bankLogoClear = function(){
+  var u = document.getElementById('bank-logo-url'); if(u) u.value = '';
+  previewBankLogo('');
+};
 
 function saveBank(id) {
   const name = document.getElementById('bank-name').value.trim();
@@ -4895,7 +4933,7 @@ function _bankLogoCircle(bank, px) {
   if(imgUrl) {
     var onErr = 'this.style.display=\'none\';this.nextSibling.style.display=\'flex\'';
     return '<div style="width:'+px+'px;height:'+px+'px;border-radius:50%;'+bgStyle+';overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">'
-      +'<img src="'+imgUrl+'" width="'+px+'" height="'+px+'" style="object-fit:contain;border-radius:50%;padding:2px" onerror="'+onErr+'">'
+      +'<img src="'+imgUrl+'" width="'+px+'" height="'+px+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="'+onErr+'">'
       +fallbackSpan+'</div>';
   }
   // Sin logo: solo iniciales
