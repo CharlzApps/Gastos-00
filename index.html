@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.16';
+const APP_VERSION = 'v2.18';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -8118,19 +8118,25 @@ function _processFile(file) {
           }
           // ── Resumen de tarjeta de crédito (flujo original) ───────
           IMP.isBankStatement = false;
-          // Prioridad 1: match exacto por número de cuenta ya guardado en una tarjeta
+          // El banco/marca MOSTRADOS vienen siempre del resumen (det) — ya seteados arriba.
+          // El número de cuenta solo sirve para elegir la cuenta exacta, y SOLO si es
+          // consistente con el banco+marca detectados (evita que un nro viejo mal asignado
+          // apunte a la tarjeta equivocada y arruine la detección al reimportar).
           var byNro = _acctByNroCuenta(det.nro);
-          IMP._nroMatched = !!byNro;
-          if (byNro) {
-            IMP.currentBank = byNro.bank || IMP.currentBank;
-            IMP.cardBrand = byNro.cardBrand || IMP.cardBrand;
+          var nroConsistente = byNro
+            && (!det.bank || (byNro.bank||'').toLowerCase()===String(det.bank).toLowerCase())
+            && (!det.card || (byNro.cardBrand||'').toLowerCase()===String(det.card).toLowerCase());
+          IMP._nroMatched = !!nroConsistente;
+          if (nroConsistente) {
             var sameNro = state.accounts.filter(function(a){ return a.nroCuenta && det.nro && a.nroCuenta.replace(/[^0-9]/g,'')===det.nro; });
             var arsA = sameNro.find(function(a){return a.currency==='ARS';});
             var usdA = sameNro.find(function(a){return a.currency==='USD';});
             IMP.accountIdARS = (arsA||byNro).id;
             if (usdA) IMP.accountIdUSD = usdA.id;
+            if (!IMP.currentBank && byNro.bank) IMP.currentBank = byNro.bank;
+            if (!IMP.cardBrand && byNro.cardBrand) IMP.cardBrand = byNro.cardBrand;
           } else {
-            // Prioridad 2: detección por banco + marca + moneda
+            // Detección por banco + marca + moneda
             var acts = _detectAccounts(det.bank, det.card);
             if (acts.arsId) IMP.accountIdARS = acts.arsId;
             if (acts.usdId) IMP.accountIdUSD = acts.usdId;
@@ -8769,13 +8775,19 @@ function _renderReview() {
   var _pill='flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 10px';
   var acctBlk=''
     +'<div style="display:flex;gap:8px;margin-bottom:8px">'
-    +'<div style="'+_pill+'">'
-    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="width:22px;height:22px;border-radius:50%;background:'+_clrRv+';display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0">'+_bankSvgRv+'</span><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Banco</span></div>'
+    +'<div style="'+_pill+';display:flex;align-items:center;gap:8px">'
+    +'<div style="flex:1;min-width:0;text-align:left">'
+    +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Banco</div>'
     +'<div style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_esc(currentBank||'—')+'</div>'
     +'</div>'
-    +(IMP.isBankStatement?'':'<div style="'+_pill+'">'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--text3);flex-shrink:0">'+_cardSvgRv+'</span><span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Tarjeta</span></div>'
+    +'<span style="width:30px;height:30px;border-radius:50%;background:'+appColorVal()+'18;color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg></span>'
+    +'</div>'
+    +(IMP.isBankStatement?'':'<div style="'+_pill+';display:flex;align-items:center;gap:8px">'
+      +'<div style="flex:1;min-width:0;text-align:left">'
+      +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Tarjeta</div>'
       +'<div style="font-size:14px;font-weight:600;color:var(--text)">'+_esc(_cardLbl)+'</div>'
+      +'</div>'
+      +'<span style="width:30px;height:30px;border-radius:50%;background:'+appColorVal()+'18;color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>'
       +'</div>')
     +'</div>'
     // Totales en 2 pills: Detectados (todo lo encontrado) + Seleccionados (lo que se importa)
@@ -8783,12 +8795,12 @@ function _renderReview() {
     +'<div style="flex:1;background:var(--bg3);border-radius:12px;padding:9px 12px">'
     +'<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Detectados</div>'
     +'<div style="font-size:16px;font-weight:700;font-family:var(--mono)">$ <span id="imp-det-ars">'+numFmt(detARS)+'</span></div>'
-    +'<div style="font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text2);margin-top:1px">U$S <span id="imp-det-usd">'+(detUSD!==0?numFmt(detUSD):'—')+'</span></div>'
+    +'<div style="font-size:16px;font-weight:400;font-family:var(--mono);color:var(--text2);margin-top:1px">U$S <span id="imp-det-usd">'+(detUSD!==0?numFmt(detUSD):'—')+'</span></div>'
     +'</div>'
     +'<div style="flex:1;background:'+appColorVal()+'14;border-radius:12px;padding:9px 12px">'
     +'<div id="imp-lbl-ars" style="font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Seleccionados</div>'
     +'<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--accent)">$ <span id="imp-total-ars">'+numFmt(selARS)+'</span></div>'
-    +'<div id="imp-lbl-usd" style="font-size:12px;font-weight:600;font-family:var(--mono);color:var(--accent);margin-top:1px">U$S <span id="imp-total-usd">'+(selUSD>0?numFmt(selUSD):'—')+'</span></div>'
+    +'<div id="imp-lbl-usd" style="font-size:16px;font-weight:400;font-family:var(--mono);color:var(--accent);margin-top:1px">U$S <span id="imp-total-usd">'+(selUSD>0?numFmt(selUSD):'—')+'</span></div>'
     +'</div>'
     +'</div>'
     +(dupCnt?'<div style="font-size:10px;color:var(--text3);margin-top:6px;text-align:right">incl. <strong>'+dupCnt+'</strong> ya registrados</div>':'')
