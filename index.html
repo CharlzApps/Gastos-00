@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.20';
+const APP_VERSION = 'v2.21';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4987,12 +4987,19 @@ function _acctCardBg(a) {
   if(/visa/i.test(a.name||'')   || a.cardBrand==='Visa')   return 'rgba(32,96,192,0.18)';
   return null;
 }
+// Reescala SOLO el tag <svg> (sin tocar rect/line internos) y mantiene viewBox → proporcional, sin recortes
+function _svgSized(svgStr, s){
+  return (svgStr||'').replace(/<svg[^>]*>/, function(tag){
+    var t = tag.replace(/\swidth="[^"]*"/i,'').replace(/\sheight="[^"]*"/i,'');
+    if(!/viewBox=/i.test(t)) t = t.replace('<svg', '<svg viewBox="0 0 24 24"');
+    return t.replace('<svg', '<svg width="'+s+'" height="'+s+'" style="display:block"');
+  });
+}
 function _acctIconDiv(a, px) {
   px = px || 30;
-  // Plano, sin círculo: ícono del tipo en el color de la app
-  var isz = Math.round(px * 0.72);
-  var ico = getAcctIcon(a).replace(/width="\d+" height="\d+"/g, 'width="'+isz+'" height="'+isz+'"');
-  return '<div style="width:'+px+'px;height:'+px+'px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">'+ico+'</div>';
+  // Plano, sin círculo: ícono del tipo en el color de la app, proporcionado dentro del recuadro
+  var s = Math.round(px * 0.62);
+  return '<div style="width:'+px+'px;height:'+px+'px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)">'+_svgSized(getAcctIcon(a), s)+'</div>';
 }
 
 function openAccountModal(id) {
