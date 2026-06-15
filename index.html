@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.10';
+const APP_VERSION = 'v2.11';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -5885,8 +5885,11 @@ function updateAccountHeader() {
     var ids = getGroupAccounts(cur).map(function(a){return a.id;});
     dot.innerHTML = ACCT_ICONS['other'].svg.replace('width="17" height="17"','width="13" height="13"');
     name.textContent = 'Cuentas en ' + cur;
-    var grpInc = state.txs.filter(function(t){return t.type==='income'&&ids.indexOf(t.accountId)>=0;}).reduce(function(s,t){return s+t.amount;},0);
-    var grpExp = state.txs.filter(function(t){return t.type==='expense'&&ids.indexOf(t.accountId)>=0;}).reduce(function(s,t){return s+t.amount;},0);
+    var _tdyG = todayStr();
+    var _creIds = {}; state.accounts.forEach(function(a){ if(a.type==='credit') _creIds[a.id]=1; });
+    var _inGrp = function(t){ return ids.indexOf(t.accountId)>=0 && (_creIds[t.accountId] || t.date<=_tdyG); };
+    var grpInc = state.txs.filter(function(t){return t.type==='income'&&_inGrp(t);}).reduce(function(s,t){return s+t.amount;},0);
+    var grpExp = state.txs.filter(function(t){return t.type==='expense'&&_inGrp(t);}).reduce(function(s,t){return s+t.amount;},0);
     var grpBal = grpInc - grpExp;
     bal.style.color = grpBal < 0 ? 'var(--red)' : 'var(--green)';
     bal.textContent = fmtAmt(grpBal) + ' ' + cur;
@@ -5903,8 +5906,12 @@ function updateAccountHeader() {
     if(ac) {
       dot.innerHTML = getAcctIcon(ac).replace('width="17" height="17"','width="13" height="13"');
       name.textContent = ac.name;
-      var inc2 = state.txs.filter(function(t){return t.type==='income'&&t.accountId===acctId;}).reduce(function(s,t){return s+t.amount;},0);
-      var exp2 = state.txs.filter(function(t){return t.type==='expense'&&t.accountId===acctId;}).reduce(function(s,t){return s+t.amount;},0);
+      // Cuentas no-crédito: saldo "actual" = hasta hoy (no contar movimientos con fecha futura),
+      // así coincide con el acumulado del último movimiento. Crédito: todo (incl. cuotas futuras).
+      var _tdyH = todayStr();
+      var _isCre = ac.type==='credit';
+      var inc2 = state.txs.filter(function(t){return t.type==='income'&&t.accountId===acctId&&(_isCre||t.date<=_tdyH);}).reduce(function(s,t){return s+t.amount;},0);
+      var exp2 = state.txs.filter(function(t){return t.type==='expense'&&t.accountId===acctId&&(_isCre||t.date<=_tdyH);}).reduce(function(s,t){return s+t.amount;},0);
       var b = inc2-exp2;
       bal.style.color = b<0?'var(--red)':'var(--green)';
       bal.textContent = fmtAmt(b) + ' ' + ac.currency;
