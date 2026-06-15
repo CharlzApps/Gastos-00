@@ -202,8 +202,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 /* ACCOUNTS VIEW */
 .accounts-grid { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .acct-grid-section { border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-.acct-grid-hdr { display: flex; align-items: center; padding: 7px 8px 7px 14px; background: var(--bg3); border-bottom: 0.5px solid var(--border); }
-.acct-grid-hdr-label { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
+.acct-grid-hdr { display: flex; align-items: center; gap: 8px; padding: 11px 8px 11px 14px; background: var(--bg3); border-bottom: 0.5px solid var(--border); }
+.acct-grid-hdr-label { font-size: 14px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em; flex: 1; }
+.acct-grid-type-icon { color: var(--text2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .acct-grid-dots { width: 28px; height: 28px; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--text3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .acct-grid-dots:hover { background: var(--bg4); }
 .acct-grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
@@ -680,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.11';
+const APP_VERSION = 'v2.12';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -3403,9 +3404,14 @@ function renderAccountsTab() {
         +'</div>';
     }).join('');
 
+    // Ícono del tipo representativo del grupo (el tipo más frecuente entre sus cuentas)
+    var _tc={}; groupAccts.forEach(function(a){ _tc[a.type]=(_tc[a.type]||0)+1; });
+    var _repType=Object.keys(_tc).sort(function(x,y){return _tc[y]-_tc[x];})[0]||'other';
+    var _grpIcon=(ACCT_ICONS[_repType]||ACCT_ICONS.other).svg.replace('width="17" height="17"','width="32" height="32"');
     return '<div class="acct-grid-section">'
       +'<div class="acct-grid-hdr">'
       +'<span class="acct-grid-hdr-label">'+grupo+'</span>'
+      +'<span class="acct-grid-type-icon">'+_grpIcon+'</span>'
       +'<button class="acct-grid-dots" onclick="event.stopPropagation();_openGroupMenu(\''+grupo+'\',this)" title="Opciones">'
       +'<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="7" cy="2.5" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="7" cy="11.5" r="1.2"/></svg>'
       +'</button></div>'
