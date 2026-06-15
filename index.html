@@ -235,7 +235,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* CAT EDITOR */
 .cat-list { display: flex; flex-direction: column; gap: 6px; }
-.cat-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--bg3); border-radius: var(--radius-sm); }
+.cat-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: transparent; border: 0.5px solid var(--border); border-radius: var(--radius-sm); }
 .cat-row-icon { font-size: 20px; }
 .cat-row-name { flex: 1; font-size: 14px; font-weight: 500; font-family: var(--mono); }
 .cat-row-count { font-size: 11px; color: var(--text3); }
@@ -246,7 +246,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* EVENTS */
 .events-list { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-.event-card { background: var(--bg3); border-radius: var(--radius); padding: 14px; border: 1px solid var(--border); cursor: pointer; }
+.event-card { background: transparent; border-radius: var(--radius); padding: 14px; border: 0.5px solid var(--border); cursor: pointer; }
 .event-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .event-icon { font-size: 22px; }
 .event-name { font-size: 14px; font-weight: 500; flex: 1; }
@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.21';
+const APP_VERSION = 'v2.22';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -3512,7 +3512,7 @@ function _openGroupAcctOrder(grupo) {
     +'<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Arrastrá para reordenar</div>'
     +'<div id="reorder-list" style="display:flex;flex-direction:column;gap:6px">'
     + groupAccts.map(function(a){
-        return '<div class="reorder-item" data-id="'+a.id+'" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);cursor:grab;user-select:none;touch-action:none">'
+        return '<div class="reorder-item" data-id="'+a.id+'" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:grab;user-select:none;touch-action:none">'
           +_acctLogoDot(a,30)
           +'<div style="flex:1;font-size:14px;font-weight:500">'+a.name+'</div>'
           +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:var(--text3);flex-shrink:0"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>'
@@ -3561,7 +3561,7 @@ function openReorderAccounts() {
       <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Arrastrá para reordenar</div>
       <div id="reorder-list" style="display:flex;flex-direction:column;gap:6px">
         ${sorted.map(a=>`
-          <div class="reorder-item" data-id="${a.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);cursor:grab;user-select:none;touch-action:none">
+          <div class="reorder-item" data-id="${a.id}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:grab;user-select:none;touch-action:none">
             ${_acctIconDiv(a,30)}
             <div style="flex:1;font-size:14px;font-weight:500">${a.name}</div>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:var(--text3);flex-shrink:0"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
@@ -3755,7 +3755,7 @@ function renderNaturesList(el) {
       : `<div style="width:18px;height:18px;border-radius:50%;border:${bw} ${bst} #111;flex-shrink:0"></div>`;
     const isBuiltin = ['fixed','variable','pleasure','investment'].includes(n.id);
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);cursor:pointer" onclick="openNatureDetailModal('${n.id}')">
+    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer" onclick="openNatureDetailModal('${n.id}')">
       ${preview}
       <div style="flex:1;font-size:14px;font-weight:500">${n.label}</div>
       <span style="font-size:12px;color:var(--text2);padding:4px 8px" onclick="event.stopPropagation();openNatureModal(${i})">Editar</span>
@@ -3899,7 +3899,7 @@ function renderConfig() {
   const sl = document.getElementById('settings-list');
   if(sl) sl.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
         <div>
           <div style="font-size:14px;font-weight:500">Mostrar decimales</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">Afecta los montos en Inicio</div>
@@ -3952,7 +3952,7 @@ function renderConfig() {
   al.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">${configAccounts.map(a=>{
     const isU = a.id==='__unassigned__';
     const txCount = state.txs.filter(t=>t.accountId===a.id).length;
-    const row = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);${isU?'border:1px dashed var(--border);opacity:0.7':''}">
+    const row = `<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);${isU?'border:1px dashed var(--border);opacity:0.7':''}">
       ${_acctIconDiv(a,34)}
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:500">${a.name}${isU?' <span style=\\"font-size:10px;color:var(--text3);font-weight:400\\">(automática)</span>':''}</div>
@@ -3973,7 +3973,7 @@ function renderConfig() {
   if(bl) {
     if(!state.banks) state.banks = [];
     bl.innerHTML = state.banks.length ? `<div style="display:flex;flex-direction:column;gap:6px">${state.banks.map(b=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm)">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
         ${_bankLogoCircle(b, 36)}
         <div style="flex:1;min-width:0">
           <div style="font-size:14px;font-weight:500">${b.name}</div>
@@ -4032,7 +4032,7 @@ function renderConfig() {
         + pending.map(p=>{
           const nextDate = new Date(p.next.date+'T00:00:00');
           const cat = p.cat;
-          return `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer" onclick="_goToCuota('${p.next.id}')">
+          return `<div style="background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer" onclick="_goToCuota('${p.next.id}')">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
               <div style="width:32px;height:32px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${getCatIcon(cat).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
@@ -4053,7 +4053,7 @@ function renderConfig() {
         }).join('')
         + (() => {
             const totalDebt = pending.reduce((sum, p) => sum + p.cuotaAmt * p.remaining, 0);
-            return `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px 14px;">
+            return `<div style="background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
               <div style="display:flex;align-items:center;gap:10px">
                 <div style="width:32px;height:32px;border-radius:50%;background:rgba(224,48,48,0.12);color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${ICON_LIBRARY['trending-up'].replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>
                 <div style="flex:1;font-size:13px;font-weight:600;color:var(--red)">Total adeudado</div>
@@ -6074,7 +6074,7 @@ window.renderConfig = function renderConfig() {
     var allCurs = getAllCurrencies();
     var curHtml = '';
     allCurs.forEach(function(c) {
-      curHtml += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);margin-top:0">'
+      curHtml += '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-top:0">'
         +'<div><div style="font-size:14px;font-weight:500">Mostrar Cuentas en '+c+'</div>'
         +'<div style="font-size:11px;color:var(--text3);margin-top:2px">Visible en el menú de inicio</div></div>'
         +'<button class="toggle-switch '+(hidden.indexOf(c)<0?'on':'')+'" onclick="toggleCurrencyGroupVisibility(\''+c+'\')" ><div class="toggle-knob"></div></button>'
@@ -6087,7 +6087,7 @@ window.renderConfig = function renderConfig() {
       var _sw=['#106050','#1a7a4a','#2060c0','#6a4d97','#b03060','#2c2c2a'];
       var _cur=(appColorVal()||'').toLowerCase();
       var _swHtml=_sw.map(function(c){ return '<div onclick="setAppColor(\''+c+'\')" title="'+c+'" style="width:24px;height:24px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid '+(c.toLowerCase()===_cur?'var(--text)':'transparent')+'"></div>'; }).join('');
-      var _colorHtml='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm)">'
+      var _colorHtml='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm)">'
         +'<div><div style="font-size:14px;font-weight:500">Color de la app</div><div style="font-size:11px;color:var(--text3);margin-top:2px">Un solo color para toda la app</div></div>'
         +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:210px;justify-content:flex-end">'+_swHtml
         +'<input type="color" value="'+appColorVal()+'" oninput="setAppColor(this.value)" style="width:28px;height:28px;border:none;background:none;padding:0;cursor:pointer">'
