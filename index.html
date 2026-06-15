@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.09';
+const APP_VERSION = 'v2.10';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1464,9 +1464,12 @@ function renderMonthPage(pageId, y, m) {
     const cumColor = cum>=0 ? 'var(--green)' : 'var(--red)';
     const isMarkedDay = _rvDate === dateStr;
     const isBelowMark = _rvDate && dateStr < _rvDate;
+    // El divisor "Revisado hasta aquí" solo se muestra en el MES de la marca (la última).
+    // En meses anteriores (todos ya revisados) no se repite.
+    const _rvInThisMonth = _rvDate && _rvDate.slice(0,7) === _monthStart.slice(0,7);
     // Línea divisoria: aparece justo encima del primer día revisado
     let divider = '';
-    if (_rvDate && (isMarkedDay || isBelowMark) && !_rvLineInserted) {
+    if (_rvInThisMonth && (isMarkedDay || isBelowMark) && !_rvLineInserted) {
       _rvLineInserted = true;
       divider = `<div style="display:flex;align-items:center;gap:8px;padding:6px 14px;margin:4px 0;background:var(--bg3);border-radius:10px">
         <div style="flex:1;height:1px;background:var(--green);opacity:0.5"></div>
