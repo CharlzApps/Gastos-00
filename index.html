@@ -204,7 +204,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .acct-grid-section { border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .acct-grid-hdr { display: flex; align-items: center; gap: 8px; padding: 11px 8px 11px 14px; background: var(--bg3); border-bottom: 0.5px solid var(--border); }
 .acct-grid-hdr-label { font-size: 14px; font-weight: 700; color: var(--text); text-transform: uppercase; letter-spacing: 0.05em; flex: 1; }
-.acct-grid-type-icon { color: var(--text2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.acct-grid-type-icon { color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .acct-grid-dots { width: 28px; height: 28px; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--text3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .acct-grid-dots:hover { background: var(--bg4); }
 .acct-grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
@@ -681,11 +681,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.12';
+const APP_VERSION = 'v2.13';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
 let state = loadState();
+applyAppColor();
 state.currentAccountId = '__group_ARS__'; // siempre iniciar en grupo ARS
 
 function defaultState() {
@@ -739,7 +740,7 @@ function defaultState() {
     defaultAccountId: 'a1',
     activeEventId: null,
     queryHistory: [],
-    settings: { showDecimals: true },
+    settings: { showDecimals: true, appColor: '#106050' },
     natures: [
       { id:'fixed',    label:'Fijo',     borderStyle:'solid' },
       { id:'variable', label:'Variable', borderStyle:'dashed' },
@@ -751,6 +752,8 @@ function defaultState() {
 // Migraciones idempotentes — se aplican TANTO al cargar local como al recibir datos de la nube
 function _migrateState(s){
   if(!s || typeof s!=='object') return s;
+  if(!s.settings) s.settings = {};
+  if(!s.settings.appColor) s.settings.appColor = '#106050';
   if(!s.banks) s.banks = defaultState().banks;
   // Pre-cargar CUIT de emisores conocidos (para detectar resúmenes)
   var _knownCuit={ 'supervielle':'33500005179', 'patagonia':'30500006613' };
@@ -766,6 +769,14 @@ function loadState() {
     return _migrateState(loaded);
   } catch(e) { return defaultState(); }
 }
+// ── Color único de la app ─────────────────────────────────────────
+function appColorVal(){ return (state && state.settings && state.settings.appColor) || '#106050'; }
+function applyAppColor(){
+  try {
+    var c = appColorVal();
+    document.documentElement.style.setProperty('--accent', c);
+  } catch(e){}
+}
 function saveState() { try { localStorage.setItem('gastosAppV1', JSON.stringify(state)); } catch(e){} if(window._cloudNotifyLocalChange){ try{ window._cloudNotifyLocalChange(); }catch(e){} } }
 // ── Puentes para el módulo de sincronización en la nube (Firebase) ──
 window.cloudGetStateJSON = function(){ try{ return JSON.stringify(state); }catch(e){ return null; } };
@@ -775,6 +786,7 @@ window.cloudApplyStateJSON = function(jsonStr){
     if(!obj || typeof obj !== 'object') return false;
     state = _migrateState(obj);
     try{ localStorage.setItem('gastosAppV1', JSON.stringify(state)); }catch(e){}
+    if(typeof applyAppColor==='function') applyAppColor();
     if(typeof renderMonths==='function') renderMonths();
     if(typeof renderMonthSummary==='function') renderMonthSummary();
     if(typeof renderAccountsTab==='function') renderAccountsTab();
@@ -1550,7 +1562,7 @@ function txItemHTML(t, showReviewBtn, txReviewed) {
 
   return `<div class="tx-item" onclick="${onclick}">
     <div class="tx-icon-wrap">
-      <div class="tx-icon" style="background:${cat.color}18;color:${cat.color};${iconBorder};position:relative">${getCatIcon(cat)}${iconOverlay}</div>
+      <div class="tx-icon" style="background:${appColorVal()}18;color:${appColorVal()};${iconBorder};position:relative">${getCatIcon(cat)}${iconOverlay}</div>
     </div>
     <div class="tx-body">
       <div class="tx-cat">${t.catCode} ${subLabel}${cuotaBadge}${evtDot}</div>
@@ -1806,7 +1818,7 @@ function renderWizard() {
     bodyHtml = `<div class="wizard-grid">
       ${cats.map(c=>`
         <div class="wizard-cat-btn" onclick="wizardSelectCat('${c.code}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:${appColorVal()}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>
           <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${c.code}</div>
           ${c.name?`<div style="font-size:10px;color:var(--text3);margin-top:2px">${c.name}</div>`:''}
         </div>`).join('')}
@@ -2197,7 +2209,7 @@ function renderModal(isEdit) {
           <label>Categoría</label>
           <div class="form-picker-btn" onclick="openFormPicker('cat')">
             <div style="display:flex;align-items:center;gap:8px">
-              ${(()=>{ const c=cats.find(c=>c.code===formState.catCode); return c?`<div style="width:26px;height:26px;border-radius:50%;background:${c.color}18;color:${c.color};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>`:'' })()}
+              ${(()=>{ const c=cats.find(c=>c.code===formState.catCode); return c?`<div style="width:26px;height:26px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg></div>`:'' })()}
               <div style="display:flex;flex-direction:column;min-width:0">
                 <span style="font-size:14px;font-weight:500;color:var(--text);line-height:1.2">${formState.catCode||'—'}</span>
                 ${formState.subcat?`<span style="font-size:11px;color:var(--text3);line-height:1.2">${formState.subcat}</span>`:''}
@@ -2407,7 +2419,7 @@ function _fpRenderBody() {
       + cats.map(function(c){
           var sel = c.code===formState.catCode;
           return '<div class="wizard-cat-btn" onclick="_fpSelectCat(\''+c.code+'\')" style="'+(sel?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:'+c.color+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">'+getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')+'</svg></div>'
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:'+appColorVal()+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32">'+getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')+'</svg></div>'
             +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+c.code+'</div>'
             +(c.name?'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+c.name+'</div>':'')
             +'</div>';
@@ -3902,7 +3914,7 @@ function renderConfig() {
     return `
     <div>
       <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="openCatDetailModal('${c.code}')">
-        <div style="width:32px;height:32px;border-radius:50%;background:${c.color}18;color:${c.color};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <div style="width:32px;height:32px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
         <div style="flex:1;min-width:0">
@@ -4022,7 +4034,7 @@ function renderConfig() {
           const cat = p.cat;
           return `<div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer" onclick="_goToCuota('${p.next.id}')">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-              <div style="width:32px;height:32px;border-radius:50%;background:${cat.color}18;color:${cat.color};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <div style="width:32px;height:32px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">${getCatIcon(cat).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
               </div>
               <div style="flex:1;min-width:0">
@@ -4128,7 +4140,7 @@ function openCatDetailModal(code, y, m) {
     <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
       <div class="modal-handle"></div>
       <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 6px">
-        <div style="width:36px;height:36px;border-radius:50%;background:${cat.color}18;color:${cat.color};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <div style="width:36px;height:36px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">${getCatIcon(cat).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
         <div style="flex:1">
@@ -4481,17 +4493,7 @@ function openCatModal(code) {
           oninput="this.value=this.value.toUpperCase().slice(0,4)"/>
         ${isEdit?'<div style="font-size:10px;color:var(--text3);margin-top:4px">Si cambiás el código, se actualizan todos los movimientos de esta categoría.</div>':''}
       </div>
-      <div class="field" style="margin-bottom:${isEdit?'10px':'16px'}">
-        <label>Color</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-          ${(() => {
-            const top = COLORS.slice(0,10); const bot = COLORS.slice(10,20);
-            const mkRow = (cols, sel, fn) => `<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:5px">${cols.map(col=>`<div onclick="${fn}('${col}')" style="width:100%;aspect-ratio:1;border-radius:50%;background:${col};cursor:pointer;border:3px solid ${col===sel?'var(--text)':'rgba(0,0,0,0.10)'}" id="cclr-${col.replace('#','')}"></div>`).join('')}</div>`;
-            return `<div style="display:flex;flex-direction:column;gap:5px;width:100%">${mkRow(top,selColor,'selectCatColor')}${mkRow(bot,selColor,'selectCatColor')}</div>`;
-          })()}
-        </div>
-        <input type="hidden" id="cc-color" value="${selColor}"/>
-      </div>
+      <input type="hidden" id="cc-color" value="${appColorVal()}"/>
       <div class="field" style="margin-bottom:10px">
         <label>Ícono</label>
         <div style="margin-top:6px">
@@ -4757,11 +4759,7 @@ function openBankModal(id) {
           </div>
         </div>
       </div>
-      <div class="field" style="margin-bottom:14px">
-        <label>Color</label>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">${colorPicker}</div>
-        <input type="hidden" id="bank-color" value="${b?.color||COLORS[0]}"/>
-      </div>
+      <input type="hidden" id="bank-color" value="${b?.color||appColorVal()}"/>
     </div>
   </div></div>`;
   document.getElementById('modal-root').innerHTML = html;
@@ -4826,7 +4824,7 @@ function deleteBank(id) {
 const ACCT_ICONS = {
   cash:    { id:'cash-bills',   svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="2" y="7" width="20" height="11" rx="1"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/></svg>`, label:'Efectivo' },
   credit:  { id:'credit-card', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg>`, label:'Tarjeta' },
-  account: { id:'safe',        svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="3" y="3" width="18" height="16" rx="2"/><circle cx="12" cy="11" r="3"/><path d="M12 8v1M12 14v1M9 11H8M16 11h-1"/><path d="M7 19v2M17 19v2"/></svg>`, label:'Cuenta' },
+  account: { id:'bank',        svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M4 10h16"/><path d="M5 6l7-3 7 3"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M8 14v3"/><path d="M12 14v3"/><path d="M16 14v3"/></svg>`, label:'Cuenta' },
   wallet:  { id:'phone',       svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`, label:'App' },
   invest:  { id:'invest',      svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`, label:'Inversión' },
   other:   { id:'info-circle', svg:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`, label:'Otra' },
@@ -5077,7 +5075,8 @@ function openAccountModal(id) {
 }
 
 function selectAcctColor(color) {
-  document.getElementById('ac-color').value = color;
+  var el = document.getElementById('ac-color');
+  if(el) el.value = color;
   document.querySelectorAll('[id^="aclr-"]').forEach(el => {
     const elColor = '#' + el.id.replace('aclr-','');
     el.style.border = elColor===color ? '3px solid var(--text)' : '3px solid rgba(0,0,0,0.12)';
@@ -5091,6 +5090,17 @@ function toggleSetting(key) {
   renderConfig();
   renderMonths();
   renderMonthSummary();
+}
+window.setAppColor = function(c){
+  if(!c) return;
+  if(!state.settings) state.settings = {};
+  state.settings.appColor = c;
+  applyAppColor();
+  saveState();
+  renderConfig();
+  renderMonths();
+  if(typeof renderAccountsTab==='function') renderAccountsTab();
+  if(typeof updateAccountHeader==='function') updateAccountHeader();
 }
 
 function resetEverything() {
@@ -6030,6 +6040,18 @@ window.renderConfig = function renderConfig() {
     });
     var inner = sl.querySelector('div');
     if(inner && curHtml) inner.insertAdjacentHTML('beforeend', curHtml);
+    // Picker único de color de la app (al inicio de Ajustes)
+    if(inner){
+      var _sw=['#106050','#1a7a4a','#2060c0','#6a4d97','#b03060','#2c2c2a'];
+      var _cur=(appColorVal()||'').toLowerCase();
+      var _swHtml=_sw.map(function(c){ return '<div onclick="setAppColor(\''+c+'\')" title="'+c+'" style="width:24px;height:24px;border-radius:50%;background:'+c+';cursor:pointer;border:2px solid '+(c.toLowerCase()===_cur?'var(--text)':'transparent')+'"></div>'; }).join('');
+      var _colorHtml='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm)">'
+        +'<div><div style="font-size:14px;font-weight:500">Color de la app</div><div style="font-size:11px;color:var(--text3);margin-top:2px">Un solo color para toda la app</div></div>'
+        +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:210px;justify-content:flex-end">'+_swHtml
+        +'<input type="color" value="'+appColorVal()+'" oninput="setAppColor(this.value)" style="width:28px;height:28px;border:none;background:none;padding:0;cursor:pointer">'
+        +'</div></div>';
+      inner.insertAdjacentHTML('afterbegin', _colorHtml);
+    }
   }
 };
 </script>
@@ -6153,7 +6175,7 @@ function renderReportes() {
     var catKeys = Object.keys(cats).sort(function(a,b){ return cats[b]-cats[a]; });
     catKeys.forEach(function(code){
       var cat = (state.categories||[]).find(function(c){ return c.code===code; });
-      var color = cat && cat.color ? cat.color : _repLighten(natColor, 0.35);
+      var color = cat ? appColorVal() : _repLighten(natColor, 0.35);
       innerSlices.push({
         label:  cat ? cat.code : code,
         amount: cats[code],
@@ -6190,7 +6212,7 @@ function renderReportes() {
     // Filas categorías
     catKeys.forEach(function(code){
       var cat    = (state.categories||[]).find(function(c){ return c.code===code; });
-      var color  = cat && cat.color ? cat.color : _repLighten(natColor, 0.35);
+      var color  = cat ? appColorVal() : _repLighten(natColor, 0.35);
       var amt    = cats[code];
       var pct    = (amt / grand * 100).toFixed(1);
       var label  = cat ? cat.code : code;
