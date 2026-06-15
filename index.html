@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.23';
+const APP_VERSION = 'v2.25';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1747,10 +1747,12 @@ function fmtFull(n) { return numFmt(n); }
 // ADD / EDIT MODAL
 // ═══════════════════════════════════════════
 let editingTxId = null;
+let _editFromSearch = false, _searchReturnQuery = '';
 let formState = { type:'expense', nature:'variable', currency:'ARS', cuotas:false, catCode:'INSU', subcat:'', accountId:'', amount:'', obs:'', date:'', eventId:'', cuotasNum:1 };
 
 function openAddModal(prefill) {
   editingTxId = null;
+  _editFromSearch = false;
   formState = { type:'expense', nature:'variable', currency:'ARS', cuotas:false, catCode:'INSU', subcat:'', accountId: getDefaultAccountId(), amount:'', obs:'', date: todayStr(), eventId: state.activeEventId||'', cuotasNum:1 };
   // set currency from default account
   const defAcct = state.accounts.find(a => a.id === getDefaultAccountId());
@@ -2124,6 +2126,10 @@ window._goToCuota = function(txId) {
 
 function openEditModal(txId, fromPendientes) {
   editingTxId = txId;
+  // ¿Se abrió desde la búsqueda? Para volver a ella tras guardar/eliminar.
+  var _siEl = document.getElementById('search-input');
+  _editFromSearch = !!_siEl;
+  _searchReturnQuery = _siEl ? _siEl.value : '';
   const tx = state.txs.find(t=>t.id===txId);
   if(!tx) return;
   const isCuota = !!tx.cuotaGroup;
@@ -2801,6 +2807,7 @@ function saveTx() {
   }
   saveState(); closeModal(); renderMonths();
   showToast(editingTxId ? 'Movimiento actualizado' : formState.cuotas?`${cuotasNum} cuotas creadas`:'Guardado');
+  if(_editFromSearch){ var _q=_searchReturnQuery; _editFromSearch=false; setTimeout(function(){ openSearch(_q); }, 10); }
 }
 
 // Registra IDs eliminados con timestamp para que el sync no los restaure
@@ -2858,6 +2865,7 @@ function deleteTx(id) {
   _tombstone(id);
   state.txs = state.txs.filter(t=>t.id!==id);
   saveState(); closeModal(); renderMonths(); showToast('Eliminado');
+  if(_editFromSearch){ var _q=_searchReturnQuery; _editFromSearch=false; setTimeout(function(){ openSearch(_q); }, 10); }
 }
 
 // ═══════════════════════════════════════════
@@ -4136,6 +4144,26 @@ function openCatDetailModal(code, y, m) {
   // prev / next month
   let py=y, pm=m-1; if(pm<1){pm=12;py--;}
   let ny=y, nm=m+1; if(nm>12){nm=1;ny++;}
+  // Agrupar por subcategoría → barras horizontales (ordenadas por monto)
+  const _bySub = {};
+  txs.forEach(t => { const k = t.subcat || ''; if(!_bySub[k]) _bySub[k]={ key:k, total:0, count:0 }; _bySub[k].total += (t.type==='expense'?-t.amount:t.amount); _bySub[k].count++; });
+  const _subs = Object.values(_bySub).sort((a,b)=>Math.abs(b.total)-Math.abs(a.total));
+  const _maxAbs = _subs.length ? Math.abs(_subs[0].total) : 1;
+  const _totAbs = _subs.reduce((s,x)=>s+Math.abs(x.total),0) || 1;
+  const subsHtml = _subs.length ? _subs.map(s=>{
+    const pct = Math.round(Math.abs(s.total)/_totAbs*100);
+    const w = Math.max(3, Math.round(Math.abs(s.total)/_maxAbs*100));
+    const col = s.total>=0 ? 'var(--green)' : 'var(--red)';
+    const nm2 = s.key || '(Sin subcategoría)';
+    return '<div onclick="openSubcatDetail(\''+code+'\',\''+String(s.key).replace(/\\/g,"\\\\").replace(/\x27/g,"\\\x27")+'\','+y+','+m+')" style="padding:11px 16px;border-bottom:0.5px solid var(--border);cursor:pointer">'
+      +'<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">'
+      +'<span style="flex:1;font-size:14px;color:var(--text)">'+_esc(nm2)+'</span>'
+      +'<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+pct+'%</span>'
+      +'<span style="font-size:14px;font-family:var(--mono);font-weight:500;color:'+col+'">'+(s.total>=0?'+':'−')+fmtAmt(Math.abs(s.total))+'</span>'
+      +'</div>'
+      +'<div style="height:6px;border-radius:3px;background:var(--bg3);overflow:hidden"><div style="height:6px;border-radius:3px;background:var(--accent);width:'+w+'%"></div></div>'
+      +'</div>';
+  }).join('') : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>';
   const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)" style="align-items:flex-start">
     <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
       <div class="modal-handle"></div>
@@ -4156,6 +4184,53 @@ function openCatDetailModal(code, y, m) {
           <div style="font-size:12px;color:var(--text3)">${txs.length} mov.</div>
         </div>
         <button onclick="openCatDetailModal('${code}',${ny},${nm})" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">›</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 16px 4px">Por subcategoría</div>
+      <div style="flex:1;overflow-y:auto;padding-bottom:16px">
+        ${subsHtml}
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+}
+
+// Nivel 2: movimientos de una subcategoría en el mes
+function openSubcatDetail(code, sub, y, m) {
+  const cat = state.categories.find(c=>c.code===code);
+  if(!cat) return;
+  const now = new Date();
+  y = y ?? now.getFullYear();
+  m = m ?? now.getMonth() + 1;
+  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const txs = state.txs.filter(t => {
+    if(t.catCode !== code) return false;
+    if((t.subcat || '') !== sub) return false;
+    return t.date.slice(0,7) === `${y}-${String(m).padStart(2,'0')}`;
+  }).sort((a,b)=>b.id.localeCompare(a.id));
+  const total = txs.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
+  let py=y, pm=m-1; if(pm<1){pm=12;py--;}
+  let ny=y, nm=m+1; if(nm>12){nm=1;ny++;}
+  const subLabel = sub || '(Sin subcategoría)';
+  const _es = String(sub).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)" style="align-items:flex-start">
+    <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 6px">
+        <button onclick="openCatDetailModal('${code}',${y},${m})" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(subLabel)}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${code} · ${MONTHS[m-1]} ${y}</div>
+        </div>
+        <button onclick="closeModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px">
+        <button onclick="openSubcatDetail('${code}','${_es}',${py},${pm})" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">‹</button>
+        <div style="text-align:center">
+          <div style="font-size:13px;color:var(--text3)">Subtotal ${MONTHS[m-1]}</div>
+          <div style="font-size:26px;font-family:var(--mono);font-weight:300;letter-spacing:-0.5px;line-height:1.1;margin:2px 0;color:${total>=0?'var(--green)':'var(--red)'}">${total>=0?'+':'−'}${fmtAmt(Math.abs(total))}</div>
+          <div style="font-size:12px;color:var(--text3)">${txs.length} mov.</div>
+        </div>
+        <button onclick="openSubcatDetail('${code}','${_es}',${ny},${nm})" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">›</button>
       </div>
       <div style="flex:1;overflow-y:auto;padding-bottom:16px">
         ${txs.length ? txs.map(t=>txItemHTML(t)).join('') : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>'}
@@ -5762,7 +5837,8 @@ function doDeleteTransfer(gid) {
   saveState(); closeModal(); renderMonths(); showToast('Transferencia eliminada');
 }
 
-function openSearch() {
+function openSearch(initialQuery) {
+  const _iq = initialQuery ? String(initialQuery) : '';
   const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
   <div class="modal-sheet" style="max-height:90vh;display:flex;flex-direction:column">
     <div class="modal-handle"></div>
@@ -5773,14 +5849,14 @@ function openSearch() {
       </button>
     </div>
     <div style="padding:0 16px 12px;flex-shrink:0">
-      <input type="text" id="search-input" placeholder="Descripción, categoría, monto, cuenta..."
+      <input type="text" id="search-input" placeholder="Descripción, categoría, monto, cuenta..." value="${_iq.replace(/"/g,'&quot;')}"
         style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:14px;font-family:var(--font);color:var(--text);outline:none"
         oninput="runSearch(this.value)" autofocus/>
     </div>
     <div id="search-results" style="flex:1;overflow-y:auto;padding:0 0 16px"></div>
   </div></div>`;
   document.getElementById('modal-root').innerHTML = html;
-  setTimeout(() => document.getElementById('search-input')?.focus(), 100);
+  setTimeout(() => { var i=document.getElementById('search-input'); if(i){ i.focus(); if(_iq){ runSearch(_iq); } } }, 100);
 }
 
 function runSearch(q) {
