@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.37';
+const APP_VERSION = 'v2.38';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1859,21 +1859,18 @@ function renderWizard() {
         <div class="wizard-grid">
           ${cashAccts.length ? `
           <div class="wizard-cat-btn" onclick="wizardAcctSub('cash')">
-            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
-            <div class="wizard-cat-name">Efectivo</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="32" height="32"')}</div>
+            <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Efectivo</div>
           </div>` : ''}
           ${walletAccts.length ? `
           <div class="wizard-cat-btn" onclick="wizardAcctSub('wallets')">
-            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
-            <div class="wizard-cat-name">Billeteras</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="32" height="32"')}</div>
+            <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Billeteras</div>
           </div>` : ''}
           ${hasBanks ? `
           <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="${topCount%2===0?'grid-column:1/-1':''}">
-            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${bankIconSvg}</div>
-            <div class="wizard-cat-name">Banco</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${bankIconSvg.replace('width="26" height="26"','width="32" height="32"')}</div>
+            <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Banco</div>
           </div>` : ''}
         </div>`;
 
@@ -1883,8 +1880,8 @@ function renderWizard() {
       const cashAccts2 = state.accounts.filter(a=>a.type==='cash').sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
       bodyHtml = `<div class="wizard-grid">
         ${cashAccts2.map(ca=>`<div class="wizard-cat-btn" onclick="wizardSelectAcct('${ca.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
-          <div class="wizard-cat-name">${_escHtml(ca.name)}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="32" height="32"')}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${_escHtml(ca.name)}</div>
         </div>`).join('')}
       </div>`;
 
@@ -1894,8 +1891,8 @@ function renderWizard() {
       const wallets2 = state.accounts.filter(a=>a.type==='wallet').sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
       bodyHtml = `<div class="wizard-grid">
         ${wallets2.map(wa=>`<div class="wizard-cat-btn" onclick="wizardSelectAcct('${wa.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(wa,32)}</div>
-          <div class="wizard-cat-name">${_escHtml(wa.name)}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(wa,36)}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${_escHtml(wa.name)}</div>
         </div>`).join('')}
       </div>`;
 
@@ -1908,8 +1905,8 @@ function renderWizard() {
         ${banks.map(b=>{
           const fakeAcct = { name: b, bank: b, type: 'account' };
           return `<div class="wizard-cat-btn" onclick="wizardAcctPickBank('${b.replace(/'/g,"\\'")}')">
-            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(fakeAcct, 32)}</div>
-            <div class="wizard-cat-name">${b}</div>
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(fakeAcct, 36)}</div>
+            <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${b}</div>
           </div>`;
         }).join('')}
       </div>`;
@@ -1922,26 +1919,26 @@ function renderWizard() {
       const visaAcct   = state.accounts.find(a=>a.type==='credit' && a.cardBrand==='Visa' && matchBank(a));
       const masterAcct = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Master'||a.cardBrand==='Mastercard') && matchBank(a));
       const otherAcct  = (!cuentaAcct && !visaAcct && !masterAcct) ? state.accounts.find(a=>matchBank(a)) : null;
-      const debitIconSvg = ACCT_ICONS.account.svg.replace('width="17" height="17"','width="26" height="26"');
+      const debitIconSvg = ACCT_ICONS.account.svg.replace('width="17" height="17"','width="32" height="32"');
       bodyHtml = `<div class="wizard-grid">
         ${cuentaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${cuentaAcct.id}')" style="${!visaAcct&&!masterAcct?'grid-column:1/-1':''}">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${debitIconSvg}</div>
-          <div class="wizard-cat-name">Cuenta $</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${debitIconSvg}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Cuenta $</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${cuentaAcct.name}</div>
         </div>` : ''}
         ${visaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${visaAcct.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(visaAcct,32)}</div>
-          <div class="wizard-cat-name">Visa</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(visaAcct,36)}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Visa</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${visaAcct.name}</div>
         </div>` : ''}
         ${masterAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${masterAcct.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(masterAcct,32)}</div>
-          <div class="wizard-cat-name">Mastercard</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(masterAcct,36)}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Mastercard</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${masterAcct.name}</div>
         </div>` : ''}
         ${otherAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${otherAcct.id}')" style="grid-column:1/-1">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(otherAcct,32)}</div>
-          <div class="wizard-cat-name">${otherAcct.name}</div>
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(otherAcct,36)}</div>
+          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${otherAcct.name}</div>
         </div>` : ''}
       </div>`;
     }
