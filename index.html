@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.25';
+const APP_VERSION = 'v2.26';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4131,9 +4131,8 @@ function renderConfig() {
 function openCatDetailModal(code, y, m) {
   const cat = state.categories.find(c=>c.code===code);
   if(!cat) return;
-  const now = new Date();
-  y = y ?? now.getFullYear();
-  m = m ?? now.getMonth() + 1;
+  y = y ?? currentYear;
+  m = m ?? (currentMonth + 1);
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
@@ -4198,9 +4197,8 @@ function openCatDetailModal(code, y, m) {
 function openSubcatDetail(code, sub, y, m) {
   const cat = state.categories.find(c=>c.code===code);
   if(!cat) return;
-  const now = new Date();
-  y = y ?? now.getFullYear();
-  m = m ?? now.getMonth() + 1;
+  y = y ?? currentYear;
+  m = m ?? (currentMonth + 1);
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
@@ -4244,9 +4242,8 @@ function openNatureDetailModal(natureId, y, m) {
   const natures = getNatures();
   const nat = natures.find(n=>n.id===natureId);
   if(!nat) return;
-  const now = new Date();
-  y = y ?? now.getFullYear();
-  m = m ?? now.getMonth() + 1;
+  y = y ?? currentYear;
+  m = m ?? (currentMonth + 1);
   const bs = nat.borderStyle||'solid';
   const txs = state.txs.filter(t => {
     if(t.nature !== natureId || t.type !== 'expense') return false;
