@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.33';
+const APP_VERSION = 'v2.34';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -2398,8 +2398,8 @@ function _fpRender() {
 function _fpRenderHeader() {
   var hdr = document.getElementById('fp-header');
   if(!hdr) return;
-  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', bank:'Banco', instrument:_fpData.bank||'Instrumento' };
-  var canBack = (_fpStep==='subcat' || _fpStep==='bank' || _fpStep==='instrument');
+  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', wallets:'Billeteras', bank:'Banco', instrument:_fpData.bank||'Instrumento' };
+  var canBack = (_fpStep==='subcat' || _fpStep==='wallets' || _fpStep==='bank' || _fpStep==='instrument');
   hdr.innerHTML = (canBack
     ? '<button onclick="_fpBack()" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center">←</button>'
     : '<div style="width:32px"></div>')
@@ -2409,6 +2409,7 @@ function _fpRenderHeader() {
 
 function _fpBack() {
   if(_fpStep==='subcat')    { _fpStep='cat';    _fpRender(); }
+  else if(_fpStep==='wallets') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='bank') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='instrument') { _fpStep='bank'; _fpRender(); }
 }
@@ -2456,15 +2457,24 @@ function _fpRenderBody() {
       + cashAccts.map(function(ca){ return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+ca.id+'\')" style="'+(formState.accountId===ca.id?'border:2px solid var(--accent)':'')+'">'
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
           +'<div class="wizard-cat-name">'+_escHtml(ca.name)+'</div></div>'; }).join('')
-      + walletAccts.map(function(wa){
-          return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+wa.id+'\')" style="'+(formState.accountId===wa.id?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(wa,32)+'</div>'
-            +'<div class="wizard-cat-name">'+wa.name+'</div></div>';
-        }).join('')
+      + (walletAccts.length ? '<div class="wizard-cat-btn" onclick="_fpStep=\'wallets\';_fpRender()">'
+          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
+          +'<div class="wizard-cat-name">Billeteras</div>'
+          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
       + (hasBanks ? '<div class="wizard-cat-btn" onclick="_fpStep=\'bank\';_fpRender()" style="grid-column:1/-1">'
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+bankIconSvg+'</div>'
           +'<div class="wizard-cat-name">Banco</div>'
           +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
+      + '</div>';
+
+  } else if(_fpStep === 'wallets') {
+    var wallets2 = state.accounts.filter(function(a){ return a.type==='wallet'; }).sort(function(a,b){ return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); });
+    html = '<div class="wizard-grid">'
+      + wallets2.map(function(wa){
+          return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+wa.id+'\')" style="'+(formState.accountId===wa.id?'border:2px solid var(--accent)':'')+'">'
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(wa,32)+'</div>'
+            +'<div class="wizard-cat-name">'+_escHtml(wa.name)+'</div></div>';
+        }).join('')
       + '</div>';
 
   } else if(_fpStep === 'bank') {
@@ -6876,27 +6886,80 @@ function showAccountPicker() {
 function showAccountsByType(group) {
   var selId = state.currentAccountId;
   var sortFn = function(a,b){ return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); };
-  var body = '';
+  // Banco: grilla de bancos (estilo ingreso manual)
   if(group==='banco'){
-    var cuentas = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && a.type==='account'; }).sort(sortFn);
-    var tarjetas = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && a.type==='credit'; }).sort(sortFn);
-    var sec = function(label){ return '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+label+'</div>'; };
-    if(cuentas.length)  body += sec('Cuentas')  + cuentas.map(function(a){return _acctPickerRow(a,selId);}).join('');
-    if(tarjetas.length) body += sec('Tarjetas') + tarjetas.map(function(a){return _acctPickerRow(a,selId);}).join('');
-  } else {
-    var accs = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && _acctGroupOf(a)===group; }).sort(sortFn);
-    body = accs.map(function(a){return _acctPickerRow(a,selId);}).join('');
+    var grid = _bankGridHtml(function(b){ return "showBankAccounts('"+_escQ(b)+"')"; });
+    var htmlB = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
+      +'<div class="modal-sheet"><div class="modal-handle"></div>'
+      +_pickerBackHeader('Banco','showAccountPicker()')
+      +'<div style="padding:0 16px 24px">'+grid+'</div>'
+      +'</div></div>';
+    document.getElementById('modal-root').innerHTML = htmlB;
+    return;
   }
+  var accs = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && _acctGroupOf(a)===group; }).sort(sortFn);
+  var body = accs.map(function(a){return _acctPickerRow(a,selId);}).join('');
   if(!body) body = '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas de este tipo</div>';
   var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
     +'<div class="modal-sheet"><div class="modal-handle"></div>'
-    +'<div style="display:flex;align-items:center;gap:8px;padding:2px 12px 10px 12px">'
-    +'<button onclick="showAccountPicker()" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>'
-    +'<span style="font-size:16px;font-weight:600;flex:1">'+(_ACCT_GRP_LBL[group]||'Cuentas')+'</span>'
-    +'</div>'
+    +_pickerBackHeader(_ACCT_GRP_LBL[group]||'Cuentas','showAccountPicker()')
     +'<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:6px">'+body+'</div>'
     +'</div></div>';
   document.getElementById('modal-root').innerHTML = html;
+}
+function _pickerBackHeader(title, backCall){
+  return '<div style="display:flex;align-items:center;gap:8px;padding:2px 12px 10px 12px">'
+    +'<button onclick="'+backCall+'" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>'
+    +'<span style="font-size:16px;font-weight:600;flex:1">'+_escHtml(title)+'</span></div>';
+}
+// Banco → cuentas/tarjetas de ese banco (selector global)
+function showBankAccounts(bankKey){
+  var selId = state.currentAccountId;
+  var grid = _bankAcctGridHtml(bankKey, function(id){ return "selectGlobalAccount('"+id+"')"; }, selId);
+  var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
+    +'<div class="modal-sheet"><div class="modal-handle"></div>'
+    +_pickerBackHeader(bankKey,"showAccountsByType('banco')")
+    +'<div style="padding:0 16px 24px">'+grid+'</div>'
+    +'</div></div>';
+  document.getElementById('modal-root').innerHTML = html;
+}
+
+// ===== Helpers compartidos: grilla de bancos / cuentas-tarjetas de un banco =====
+function _banksOf(){
+  var acc = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && (a.type==='account'||a.type==='credit'); });
+  var seen={}, banks=[];
+  acc.forEach(function(a){ var k=a.bank||a.name; if(!seen[k]){seen[k]=true; banks.push(k);} });
+  banks.sort(function(a,b){ return a.localeCompare(b,'es',{sensitivity:'base'}); });
+  return banks;
+}
+function _bankMatch(a, bankKey){ return (a.bank&&a.bank===bankKey)||(!a.bank&&a.name===bankKey); }
+function _bankAcctsOf(bankKey){
+  return state.accounts.filter(function(a){ return a.id!=='__unassigned__' && (a.type==='account'||a.type==='credit') && _bankMatch(a,bankKey); })
+    .sort(function(a,b){ var ta=a.type==='credit'?1:0, tb=b.type==='credit'?1:0; if(ta!==tb) return ta-tb; return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); });
+}
+function _escQ(s){ return String(s).replace(/'/g,"\\'"); }
+// onclickBank(bankKey)->string ; grilla cuadrada de bancos con logo
+function _bankGridHtml(onclickBank){
+  var banks=_banksOf();
+  if(!banks.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin bancos</div>';
+  return '<div class="wizard-grid">'+banks.map(function(b){
+    var logoAcct={ name:b, bank:b, type:'account' };
+    return '<div class="wizard-cat-btn" onclick="'+onclickBank(b)+'">'
+      +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(logoAcct,32)+'</div>'
+      +'<div class="wizard-cat-name">'+_escHtml(b)+'</div></div>';
+  }).join('')+'</div>';
+}
+// onclickAcct(id)->string ; grilla cuadrada de cuentas/tarjetas de un banco
+function _bankAcctGridHtml(bankKey, onclickAcct, selId){
+  var accts=_bankAcctsOf(bankKey);
+  if(!accts.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
+  return '<div class="wizard-grid">'+accts.map(function(a){
+    var lbl = a.type==='credit' ? (a.cardBrand||'Tarjeta') : 'Cuenta';
+    return '<div class="wizard-cat-btn" onclick="'+onclickAcct(a.id)+'" style="'+(selId===a.id?'border:2px solid var(--accent)':'')+'">'
+      +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(a,32)+'</div>'
+      +'<div class="wizard-cat-name">'+_escHtml(a.name)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+_escHtml(lbl)+'</div></div>';
+  }).join('')+'</div>';
 }
 
 // ===== Picker reutilizable de cuentas (dos pasos, agrupado) — overlay sobre cualquier modal =====
@@ -6937,19 +7000,23 @@ function _acctPickGroup(group){
       +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+_escHtml(a.name)+'</div></div>'
       +(sel?'<span style="color:var(--accent)">✓</span>':'')+'</div>';
   };
-  var body='';
   if(group==='banco'){
-    var cuentas=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&a.type==='account';}).sort(sortFn);
-    var tarjetas=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&a.type==='credit';}).sort(sortFn);
-    var sec=function(l){return '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+l+'</div>';};
-    if(cuentas.length) body+=sec('Cuentas')+cuentas.map(rowFor).join('');
-    if(tarjetas.length) body+=sec('Tarjetas')+tarjetas.map(rowFor).join('');
-  } else {
-    body=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&_acctGroupOf(a)===group;}).sort(sortFn).map(rowFor).join('');
+    var grid=_bankGridHtml(function(b){ return "_acctPickBank('"+_escQ(b)+"')"; });
+    inner.innerHTML=_acctPickHeader('Banco','_acctPickGroups()')+'<div style="padding:0 16px">'+grid+'</div>';
+    return;
   }
+  var body=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&_acctGroupOf(a)===group;}).sort(sortFn).map(rowFor).join('');
   if(!body) body='<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
-  inner.innerHTML='<div style="padding:14px 16px 8px;display:flex;align-items:center;gap:8px"><button onclick="_acctPickGroups()" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2)">←</button><span style="font-size:15px;font-weight:600;flex:1">'+(_ACCT_GRP_LBL[group]||'Cuentas')+'</span><button onclick="_acctPickClose()" style="width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button></div>'
+  inner.innerHTML=_acctPickHeader(_ACCT_GRP_LBL[group]||'Cuentas','_acctPickGroups()')
     +'<div style="padding:0 16px;display:flex;flex-direction:column;gap:6px">'+body+'</div>';
+}
+function _acctPickHeader(title, backCall){
+  return '<div style="padding:14px 16px 8px;display:flex;align-items:center;gap:8px"><button onclick="'+backCall+'" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2)">←</button><span style="font-size:15px;font-weight:600;flex:1">'+_escHtml(title)+'</span><button onclick="_acctPickClose()" style="width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button></div>';
+}
+function _acctPickBank(bankKey){
+  var inner=document.getElementById('acct-pick-inner'); if(!inner) return;
+  var grid=_bankAcctGridHtml(bankKey, function(id){ return "_acctPickChoose('"+id+"')"; }, _acctPickCur);
+  inner.innerHTML=_acctPickHeader(bankKey,"_acctPickGroup('banco')")+'<div style="padding:0 16px">'+grid+'</div>';
 }
 function _tfAcctDispHtml(a){
   return (a?_acctLogoDot(a,26):'')+'<span style="flex:1;font-size:14px">'+(a?_escHtml(a.name):'—')+'</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--text3);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>';
