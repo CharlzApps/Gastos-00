@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.29';
+const APP_VERSION = 'v2.31';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4133,27 +4133,46 @@ function openCategoriesModal(y, m) {
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const key = `${y}-${String(m).padStart(2,'0')}`;
   const monthTxs = state.txs.filter(t => t.date && t.date.slice(0,7)===key && !t.transferGroup);
-  const byCat = {};
-  monthTxs.forEach(t => { const c=t.catCode||'OTRO'; if(!byCat[c]) byCat[c]={code:c,total:0,count:0}; byCat[c].total += (t.type==='expense'?-t.amount:t.amount); byCat[c].count++; });
-  const cats = Object.values(byCat).sort((a,b)=>Math.abs(b.total)-Math.abs(a.total));
-  const maxAbs = cats.length ? Math.abs(cats[0].total) : 1;
+  function _aggByType(tp){
+    const by={};
+    monthTxs.filter(t=>t.type===tp).forEach(t=>{ const c=t.catCode||'OTRO'; if(!by[c]) by[c]={code:c,total:0,count:0}; by[c].total+=t.amount; by[c].count++; });
+    return Object.values(by).sort((a,b)=>b.total-a.total);
+  }
+  const gastos = _aggByType('expense');
+  const ingresos = _aggByType('income');
+  const gTot = gastos.reduce((s,c)=>s+c.total,0);
+  const iTot = ingresos.reduce((s,c)=>s+c.total,0);
+  const cats = gastos.concat(ingresos);
   let py=y, pm=m-1; if(pm<1){pm=12;py--;}
   let ny=y, nm=m+1; if(nm>12){nm=1;ny++;}
-  const rows = cats.length ? cats.map(c=>{
-    const catObj = state.categories.find(x=>x.code===c.code);
-    const ico = catObj ? _svgSized(getCatIcon(catObj), 22) : '';
-    const w = Math.max(3, Math.round(Math.abs(c.total)/maxAbs*100));
-    const col = c.total>=0 ? 'var(--green)' : 'var(--red)';
-    return '<div onclick="openCatDetailModal(\''+c.code+'\','+y+','+m+')" style="padding:11px 16px;border-bottom:0.5px solid var(--border);cursor:pointer">'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
-      +'<span style="width:24px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">'+ico+'</span>'
-      +'<span style="flex:1;font-size:14px;font-family:var(--mono)">'+_escHtml(c.code)+'</span>'
-      +'<span style="font-size:11px;color:var(--text3)">'+c.count+'</span>'
-      +'<span style="font-size:14px;font-family:var(--mono);font-weight:500;color:'+col+'">'+(c.total>=0?'+':'−')+fmtAmt(Math.abs(c.total))+'</span>'
-      +'</div>'
-      +'<div style="height:6px;border-radius:3px;background:var(--bg3);overflow:hidden"><div style="height:6px;border-radius:3px;background:var(--accent);width:'+w+'%"></div></div>'
+  function _catRows(list, col){
+    const max = list.length ? list[0].total : 1;
+    return list.map(c=>{
+      const catObj = state.categories.find(x=>x.code===c.code);
+      const ico = catObj ? _svgSized(getCatIcon(catObj), 22) : '';
+      const w = Math.max(3, Math.round((c.total/max)*100));
+      return '<div onclick="openCatDetailModal(\''+c.code+'\','+y+','+m+')" style="padding:11px 16px;border-bottom:0.5px solid var(--border);cursor:pointer">'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
+        +'<span style="width:24px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">'+ico+'</span>'
+        +'<span style="flex:1;font-size:14px;font-family:var(--mono)">'+_escHtml(c.code)+'</span>'
+        +'<span style="font-size:11px;color:var(--text3)">'+c.count+'</span>'
+        +'<span style="font-size:14px;font-family:var(--mono);font-weight:500;color:'+col+'">'+fmtAmt(c.total)+'</span>'
+        +'</div>'
+        +'<div style="height:6px;border-radius:3px;background:var(--bg3);overflow:hidden"><div style="height:6px;border-radius:3px;background:var(--accent);width:'+w+'%"></div></div>'
+        +'</div>';
+    }).join('');
+  }
+  function _section(label, total, col, list){
+    const head = '<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 16px 8px;background:var(--bg2);border-bottom:0.5px solid var(--border)">'
+      +'<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+col+'">'+label+'</span>'
+      +'<span style="font-size:15px;font-family:var(--mono);font-weight:700;color:'+col+'">'+(label==='Gastos'?'−':'+')+fmtAmt(total)+'</span>'
       +'</div>';
-  }).join('') : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>';
+    const inner = list.length ? _catRows(list, col) : '<div style="padding:18px 16px;text-align:center;color:var(--text3);font-size:12px">Sin '+label.toLowerCase()+'</div>';
+    return head + inner;
+  }
+  const rows = cats.length
+    ? _section('Gastos', gTot, 'var(--red)', gastos) + _section('Ingresos', iTot, 'var(--green)', ingresos)
+    : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>';
   const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)" style="align-items:flex-start">
     <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
       <div class="modal-handle"></div>
@@ -4167,7 +4186,6 @@ function openCategoriesModal(y, m) {
         <div style="text-align:center"><div style="font-size:15px;font-weight:600;letter-spacing:-0.3px">${MONTHS[m-1]} ${y}</div><div style="font-size:12px;color:var(--text3)">${cats.length} categoría${cats.length!==1?'s':''}</div></div>
         <button onclick="openCategoriesModal(${ny},${nm})" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">›</button>
       </div>
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 16px 4px">Por categoría</div>
       <div style="flex:1;overflow-y:auto;padding-bottom:16px">${rows}</div>
     </div>
   </div>`;
@@ -6781,8 +6799,13 @@ function _buildDoubleRingSVG(outerSlices, innerSlices, grand) {
 </script>
 <script>
 // Fix 9h: showAccountPicker — grupos solo si tienen cuentas incluidas + cuentas individuales
-var _ACCT_TYPE_LBL = { cash:'Efectivo', account:'Banco', credit:'Tarjeta', wallet:'Billetera', invest:'Inversión', other:'Otra' };
-function _acctTypeOf(a){ return _ACCT_TYPE_LBL[a.type] ? a.type : 'other'; }
+// Grupos del paso 1: Banco agrupa cuentas bancarias + tarjetas
+var _ACCT_GRP_LBL = { cash:'Efectivo', banco:'Banco', wallet:'Billetera', invest:'Inversión', other:'Otra' };
+var _ACCT_GRP_ICON = { cash:'cash', banco:'account', wallet:'wallet', invest:'invest', other:'other' };
+function _acctGroupOf(a){
+  if(a.type==='account' || a.type==='credit') return 'banco';
+  return _ACCT_GRP_LBL[a.type] ? a.type : 'other';
+}
 function _pickerRow(onclick, iconHtml, title, sub, sel){
   return '<div onclick="'+onclick+'" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;'+(sel?'border-color:var(--accent);':'')+'">'
     +'<span style="width:28px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">'+iconHtml+'</span>'
@@ -6791,13 +6814,26 @@ function _pickerRow(onclick, iconHtml, title, sub, sel){
     +(sel?'<span style="color:var(--accent)">✓</span>':'<svg viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>')
     +'</div>';
 }
-// Paso 1: tipos (+ grupos por moneda)
+// Fila de cuenta individual (logo + nombre + saldo)
+function _acctPickerRow(a, selId){
+  var inc = state.txs.filter(function(t){return t.type==='income'&&t.accountId===a.id;}).reduce(function(s,t){return s+t.amount;},0);
+  var exp = state.txs.filter(function(t){return t.type==='expense'&&t.accountId===a.id;}).reduce(function(s,t){return s+t.amount;},0);
+  var bal = inc-exp;
+  var sym = a.currency==='USD'?'U$S':a.currency==='EUR'?'€':a.currency==='BRL'?'R$':'$';
+  var balStr = (bal<0?'−':'')+sym+' '+fmtAmt(Math.abs(bal));
+  var sel = selId===a.id;
+  return '<div onclick="selectGlobalAccount(\''+a.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;'+(sel?'border-color:var(--accent);':'')+'">'
+    +_acctLogoDot(a,30)
+    +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+_escHtml(a.name)+'</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+balStr+'</div></div>'
+    +(sel?'<span style="color:var(--accent)">✓</span>':'')
+    +'</div>';
+}
+// Paso 1: grupos (+ grupos por moneda)
 function showAccountPicker() {
   var accounts = state.accounts.filter(function(a){ return a.id !== '__unassigned__'; });
   if(!accounts.length) { showToast('No hay cuentas'); return; }
   var selId = state.currentAccountId;
   var rows = '';
-  // Grupos por moneda (ver todas las de una moneda)
   var seenCurs = [];
   accounts.forEach(function(a){ var c=a.currency||'ARS'; if(seenCurs.indexOf(c)<0) seenCurs.push(c); });
   seenCurs.forEach(function(c){
@@ -6805,48 +6841,45 @@ function showAccountPicker() {
     var gid = '__group_'+c+'__';
     rows += _pickerRow("selectGlobalAccount('"+gid+"')", _svgSized(ACCT_ICONS.other.svg,20), 'Cuentas en '+c, n+' cuenta'+(n!==1?'s':'')+' incluida'+(n!==1?'s':''), selId===gid);
   });
-  // Tipos presentes
-  var TYPE_ORDER = ['cash','account','credit','wallet','invest','other'];
-  var typeCount = {};
-  accounts.forEach(function(a){ var t=_acctTypeOf(a); typeCount[t]=(typeCount[t]||0)+1; });
-  var typeRows = TYPE_ORDER.filter(function(t){return typeCount[t];}).map(function(t){
-    var ico = _svgSized((ACCT_ICONS[t]||ACCT_ICONS.other).svg, 21);
-    return _pickerRow("showAccountsByType('"+t+"')", ico, _ACCT_TYPE_LBL[t], typeCount[t]+' cuenta'+(typeCount[t]!==1?'s':''), false);
+  var GRP_ORDER = ['cash','banco','wallet','invest','other'];
+  var grpCount = {};
+  accounts.forEach(function(a){ var g=_acctGroupOf(a); grpCount[g]=(grpCount[g]||0)+1; });
+  var grpRows = GRP_ORDER.filter(function(g){return grpCount[g];}).map(function(g){
+    var ico = _svgSized((ACCT_ICONS[_ACCT_GRP_ICON[g]]||ACCT_ICONS.other).svg, 21);
+    return _pickerRow("showAccountsByType('"+g+"')", ico, _ACCT_GRP_LBL[g], grpCount[g]+' cuenta'+(grpCount[g]!==1?'s':''), false);
   }).join('');
   var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
     +'<div class="modal-sheet"><div class="modal-handle"></div>'
     +'<div class="modal-title">Seleccionar cuenta</div>'
     +'<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:6px">'
     + rows
-    + (typeRows ? '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:8px 2px 2px">Por tipo</div>'+typeRows : '')
+    + (grpRows ? '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:8px 2px 2px">Por tipo</div>'+grpRows : '')
     +'</div></div></div>';
   document.getElementById('modal-root').innerHTML = html;
 }
-// Paso 2: cuentas de un tipo
-function showAccountsByType(type) {
+// Paso 2: cuentas del grupo. 'banco' se divide en Cuentas y Tarjetas.
+function showAccountsByType(group) {
   var selId = state.currentAccountId;
-  var accounts = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && _acctTypeOf(a)===type; })
-    .sort(function(a,b){ return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); });
-  var rows = accounts.map(function(a){
-    var inc = state.txs.filter(function(t){return t.type==='income'&&t.accountId===a.id;}).reduce(function(s,t){return s+t.amount;},0);
-    var exp = state.txs.filter(function(t){return t.type==='expense'&&t.accountId===a.id;}).reduce(function(s,t){return s+t.amount;},0);
-    var bal = inc-exp;
-    var sym = a.currency==='USD'?'U$S':a.currency==='EUR'?'€':a.currency==='BRL'?'R$':'$';
-    var balStr = (bal<0?'−':'')+sym+' '+fmtAmt(Math.abs(bal));
-    var sel = selId===a.id;
-    return '<div onclick="selectGlobalAccount(\''+a.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;'+(sel?'border-color:var(--accent);':'')+'">'
-      +_acctLogoDot(a,30)
-      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+_escHtml(a.name)+'</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">'+balStr+'</div></div>'
-      +(sel?'<span style="color:var(--accent)">✓</span>':'')
-      +'</div>';
-  }).join('') || '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas de este tipo</div>';
+  var sortFn = function(a,b){ return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); };
+  var body = '';
+  if(group==='banco'){
+    var cuentas = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && a.type==='account'; }).sort(sortFn);
+    var tarjetas = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && a.type==='credit'; }).sort(sortFn);
+    var sec = function(label){ return '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+label+'</div>'; };
+    if(cuentas.length)  body += sec('Cuentas')  + cuentas.map(function(a){return _acctPickerRow(a,selId);}).join('');
+    if(tarjetas.length) body += sec('Tarjetas') + tarjetas.map(function(a){return _acctPickerRow(a,selId);}).join('');
+  } else {
+    var accs = state.accounts.filter(function(a){ return a.id!=='__unassigned__' && _acctGroupOf(a)===group; }).sort(sortFn);
+    body = accs.map(function(a){return _acctPickerRow(a,selId);}).join('');
+  }
+  if(!body) body = '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas de este tipo</div>';
   var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
     +'<div class="modal-sheet"><div class="modal-handle"></div>'
     +'<div style="display:flex;align-items:center;gap:8px;padding:2px 12px 10px 12px">'
     +'<button onclick="showAccountPicker()" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>'
-    +'<span style="font-size:16px;font-weight:600;flex:1">'+_ACCT_TYPE_LBL[type]+'</span>'
+    +'<span style="font-size:16px;font-weight:600;flex:1">'+(_ACCT_GRP_LBL[group]||'Cuentas')+'</span>'
     +'</div>'
-    +'<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:6px">'+rows+'</div>'
+    +'<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:6px">'+body+'</div>'
     +'</div></div>';
   document.getElementById('modal-root').innerHTML = html;
 }
