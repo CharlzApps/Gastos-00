@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.38';
+const APP_VERSION = 'v2.39';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -2480,20 +2480,18 @@ function _fpRenderBody() {
     var cashAccts = state.accounts.filter(function(a){ return a.type==='cash'; });
     var walletAccts = state.accounts.filter(function(a){ return a.type==='wallet'; });
     var hasBanks = state.accounts.some(function(a){ return !['cash','wallet'].includes(a.type); });
-    var bankIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>';
+    var bankIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>';
+    var topCount = (cashAccts.length?1:0)+(walletAccts.length?1:0);
     html = '<div class="wizard-grid">'
       + (cashAccts.length ? '<div class="wizard-cat-btn" onclick="_fpStep=\'cashsel\';_fpRender()">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
-          +'<div class="wizard-cat-name">Efectivo</div>'
-          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
+          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="32" height="32"')+'</div>'
+          +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">Efectivo</div></div>' : '')
       + (walletAccts.length ? '<div class="wizard-cat-btn" onclick="_fpStep=\'wallets\';_fpRender()">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
-          +'<div class="wizard-cat-name">Billeteras</div>'
-          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
-      + (hasBanks ? '<div class="wizard-cat-btn" onclick="_fpStep=\'bank\';_fpRender()" style="grid-column:1/-1">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+bankIconSvg+'</div>'
-          +'<div class="wizard-cat-name">Banco</div>'
-          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
+          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">'+ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="32" height="32"')+'</div>'
+          +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">Billeteras</div></div>' : '')
+      + (hasBanks ? '<div class="wizard-cat-btn" onclick="_fpStep=\'bank\';_fpRender()" style="'+(topCount%2===0?'grid-column:1/-1':'')+'">'
+          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">'+bankIconSvg+'</div>'
+          +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">Banco</div></div>' : '')
       + '</div>';
 
   } else if(_fpStep === 'cashsel') {
@@ -2501,8 +2499,8 @@ function _fpRenderBody() {
     html = '<div class="wizard-grid">'
       + cash2.map(function(ca){
           return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+ca.id+'\')" style="'+(formState.accountId===ca.id?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
-            +'<div class="wizard-cat-name">'+_escHtml(ca.name)+'</div></div>';
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="32" height="32"')+'</div>'
+            +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(ca.name)+'</div></div>';
         }).join('')
       + '</div>';
 
@@ -2511,49 +2509,17 @@ function _fpRenderBody() {
     html = '<div class="wizard-grid">'
       + wallets2.map(function(wa){
           return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+wa.id+'\')" style="'+(formState.accountId===wa.id?'border:2px solid var(--accent)':'')+'">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(wa,32)+'</div>'
-            +'<div class="wizard-cat-name">'+_escHtml(wa.name)+'</div></div>';
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">'+_acctLogoDot(wa,36)+'</div>'
+            +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(wa.name)+'</div></div>';
         }).join('')
       + '</div>';
 
   } else if(_fpStep === 'bank') {
-    var bancoAccts2 = state.accounts.filter(function(a){ return !['cash','wallet'].includes(a.type); });
-    var banks = [];
-    var seen = {};
-    bancoAccts2.forEach(function(a){ var k=a.bank||a.name; if(!seen[k]){seen[k]=true;banks.push(k);} });
-    banks.sort();
-    html = '<div class="wizard-grid">'
-      + banks.map(function(b){
-          var fakeAcct = { name:b, bank:b, type:'account' };
-          return '<div class="wizard-cat-btn" onclick="_fpPickBank(\''+b.replace(/'/g,"\\'")+'\')">'
-            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(fakeAcct,32)+'</div>'
-            +'<div class="wizard-cat-name">'+b+'</div></div>';
-        }).join('')
-      + '</div>';
+    html = _bankGridHtml(function(b){ return "_fpPickBank('"+_escQ(b)+"')"; });
 
   } else if(_fpStep === 'instrument') {
     var bk = _fpData.bank||'';
-    var matchBk = function(a){ return (a.bank&&a.bank===bk)||(!a.bank&&a.name===bk); };
-    var cuentaA = state.accounts.find(function(a){ return !['cash','wallet','credit'].includes(a.type)&&matchBk(a); });
-    var visaA   = state.accounts.find(function(a){ return a.type==='credit'&&a.cardBrand==='Visa'&&matchBk(a); });
-    var masterA = state.accounts.find(function(a){ return a.type==='credit'&&(a.cardBrand==='Master'||a.cardBrand==='Mastercard')&&matchBk(a); });
-    var otherA  = (!cuentaA&&!visaA&&!masterA) ? state.accounts.find(function(a){ return matchBk(a); }) : null;
-    var debitIco = ACCT_ICONS.account.svg.replace('width="17" height="17"','width="26" height="26"');
-    html = '<div class="wizard-grid">'
-      + (cuentaA ? '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+cuentaA.id+'\')" style="'+(formState.accountId===cuentaA.id?'border:2px solid var(--accent)':'')+((!visaA&&!masterA)?';grid-column:1/-1':'')+'">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+debitIco+'</div>'
-          +'<div class="wizard-cat-name">Cuenta $</div>'
-          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+cuentaA.name+'</div></div>' : '')
-      + (visaA ? '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+visaA.id+'\')" style="'+(formState.accountId===visaA.id?'border:2px solid var(--accent)':'')+'">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(visaA,32)+'</div>'
-          +'<div class="wizard-cat-name">Visa</div></div>' : '')
-      + (masterA ? '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+masterA.id+'\')" style="'+(formState.accountId===masterA.id?'border:2px solid var(--accent)':'')+'">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(masterA,32)+'</div>'
-          +'<div class="wizard-cat-name">Mastercard</div></div>' : '')
-      + (otherA ? '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+otherA.id+'\')" style="grid-column:1/-1;'+(formState.accountId===otherA.id?'border:2px solid var(--accent)':'')+'">'
-          +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(otherA,32)+'</div>'
-          +'<div class="wizard-cat-name">'+otherA.name+'</div></div>' : '')
-      + '</div>';
+    html = _bankAcctGridHtml(bk, function(id){ return "_fpSelectAcct('"+id+"')"; }, formState.accountId);
   }
   inner.innerHTML = html;
 }
@@ -6986,28 +6952,33 @@ function _bankAcctsOf(bankKey){
     .sort(function(a,b){ var ta=a.type==='credit'?1:0, tb=b.type==='credit'?1:0; if(ta!==tb) return ta-tb; return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); });
 }
 function _escQ(s){ return String(s).replace(/'/g,"\\'"); }
-// onclickBank(bankKey)->string ; grilla cuadrada de bancos con logo
+// onclickBank(bankKey)->string ; grilla cuadrada de bancos con logo (estilo A)
 function _bankGridHtml(onclickBank){
   var banks=_banksOf();
   if(!banks.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin bancos</div>';
   return '<div class="wizard-grid">'+banks.map(function(b){
     var logoAcct={ name:b, bank:b, type:'account' };
     return '<div class="wizard-cat-btn" onclick="'+onclickBank(b)+'">'
-      +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(logoAcct,32)+'</div>'
-      +'<div class="wizard-cat-name">'+_escHtml(b)+'</div></div>';
+      +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">'+_acctLogoDot(logoAcct,36)+'</div>'
+      +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(b)+'</div></div>';
   }).join('')+'</div>';
 }
-// onclickAcct(id)->string ; grilla cuadrada de cuentas/tarjetas de un banco
+function _bankAcctCard(a, onclickAcct, selId){
+  return '<div class="wizard-cat-btn" onclick="'+onclickAcct(a.id)+'" style="'+(selId===a.id?'border:2px solid var(--accent)':'')+'">'
+    +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">'+_acctLogoDot(a,36)+'</div>'
+    +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(a.name)+'</div></div>';
+}
+function _sectLabel(t){ return '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+t+'</div>'; }
+// onclickAcct(id)->string ; cuentas/tarjetas de un banco, separadas en secciones (estilo A)
 function _bankAcctGridHtml(bankKey, onclickAcct, selId){
   var accts=_bankAcctsOf(bankKey);
   if(!accts.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
-  return '<div class="wizard-grid">'+accts.map(function(a){
-    var lbl = a.type==='credit' ? (a.cardBrand||'Tarjeta') : 'Cuenta';
-    return '<div class="wizard-cat-btn" onclick="'+onclickAcct(a.id)+'" style="'+(selId===a.id?'border:2px solid var(--accent)':'')+'">'
-      +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(a,32)+'</div>'
-      +'<div class="wizard-cat-name">'+_escHtml(a.name)+'</div>'
-      +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+_escHtml(lbl)+'</div></div>';
-  }).join('')+'</div>';
+  var cuentas=accts.filter(function(a){return a.type!=='credit';});
+  var tarjetas=accts.filter(function(a){return a.type==='credit';});
+  var html='<div class="wizard-grid">';
+  if(cuentas.length) html+=_sectLabel('Cuentas')+cuentas.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('');
+  if(tarjetas.length) html+=_sectLabel('Tarjetas')+tarjetas.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('');
+  return html+'</div>';
 }
 
 // ===== Picker reutilizable de cuentas (dos pasos, agrupado) — overlay sobre cualquier modal =====
