@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.39';
+const APP_VERSION = 'v2.40';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1911,36 +1911,10 @@ function renderWizard() {
         }).join('')}
       </div>`;
 
-    // ── SUB-PASO: elegir instrumento ──────────────────────────────
+    // ── SUB-PASO: elegir instrumento (Cuentas / Tarjetas) ─────────
     } else if(s.acctSubStep === 'instrument') {
       titleText = s.acctBank;
-      const matchBank = a => (a.bank && a.bank===s.acctBank) || (!a.bank && a.name===s.acctBank);
-      const cuentaAcct = state.accounts.find(a=>!['cash','wallet','credit'].includes(a.type) && matchBank(a));
-      const visaAcct   = state.accounts.find(a=>a.type==='credit' && a.cardBrand==='Visa' && matchBank(a));
-      const masterAcct = state.accounts.find(a=>a.type==='credit' && (a.cardBrand==='Master'||a.cardBrand==='Mastercard') && matchBank(a));
-      const otherAcct  = (!cuentaAcct && !visaAcct && !masterAcct) ? state.accounts.find(a=>matchBank(a)) : null;
-      const debitIconSvg = ACCT_ICONS.account.svg.replace('width="17" height="17"','width="32" height="32"');
-      bodyHtml = `<div class="wizard-grid">
-        ${cuentaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${cuentaAcct.id}')" style="${!visaAcct&&!masterAcct?'grid-column:1/-1':''}">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">${debitIconSvg}</div>
-          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Cuenta $</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${cuentaAcct.name}</div>
-        </div>` : ''}
-        ${visaAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${visaAcct.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(visaAcct,36)}</div>
-          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Visa</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${visaAcct.name}</div>
-        </div>` : ''}
-        ${masterAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${masterAcct.id}')">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(masterAcct,36)}</div>
-          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">Mastercard</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${masterAcct.name}</div>
-        </div>` : ''}
-        ${otherAcct ? `<div class="wizard-cat-btn" onclick="wizardSelectAcct('${otherAcct.id}')" style="grid-column:1/-1">
-          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">${_acctLogoDot(otherAcct,36)}</div>
-          <div class="wizard-cat-name" style="font-size:16px;font-weight:600">${otherAcct.name}</div>
-        </div>` : ''}
-      </div>`;
+      bodyHtml = _bankAcctGridHtml(s.acctBank, function(id){ return "wizardSelectAcct('"+id+"')"; }, s.accountId);
     }
   } else if(s.step === 5) {
     titleText = 'Cuotas';
@@ -6963,22 +6937,22 @@ function _bankGridHtml(onclickBank){
       +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(b)+'</div></div>';
   }).join('')+'</div>';
 }
+function _instLabel(a){
+  var sym = a.currency==='USD'?'U$S':a.currency==='EUR'?'€':a.currency==='BRL'?'R$':'$';
+  if(a.type==='credit') return (a.cardBrand||'Tarjeta')+' '+sym;
+  return 'Cuenta '+sym;
+}
 function _bankAcctCard(a, onclickAcct, selId){
   return '<div class="wizard-cat-btn" onclick="'+onclickAcct(a.id)+'" style="'+(selId===a.id?'border:2px solid var(--accent)':'')+'">'
     +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px">'+_acctLogoDot(a,36)+'</div>'
-    +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(a.name)+'</div></div>';
+    +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+_escHtml(_instLabel(a))+'</div>'
+    +'<div style="font-size:10px;color:var(--text3);margin-top:2px">'+_escHtml(a.name)+'</div></div>';
 }
-function _sectLabel(t){ return '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+t+'</div>'; }
-// onclickAcct(id)->string ; cuentas/tarjetas de un banco, separadas en secciones (estilo A)
+// onclickAcct(id)->string ; cuentas (primero) y tarjetas (después) como botones, sin secciones (como ingreso manual)
 function _bankAcctGridHtml(bankKey, onclickAcct, selId){
   var accts=_bankAcctsOf(bankKey);
   if(!accts.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
-  var cuentas=accts.filter(function(a){return a.type!=='credit';});
-  var tarjetas=accts.filter(function(a){return a.type==='credit';});
-  var html='<div class="wizard-grid">';
-  if(cuentas.length) html+=_sectLabel('Cuentas')+cuentas.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('');
-  if(tarjetas.length) html+=_sectLabel('Tarjetas')+tarjetas.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('');
-  return html+'</div>';
+  return '<div class="wizard-grid">'+accts.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('')+'</div>';
 }
 
 // ===== Picker reutilizable de cuentas (dos pasos, agrupado) — overlay sobre cualquier modal =====
