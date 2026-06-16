@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.35';
+const APP_VERSION = 'v2.36';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1847,32 +1847,57 @@ function renderWizard() {
       const currency = (state.accounts.find(a=>a.id===s.accountId)?.currency)||'ARS';
       const sym = currency==='USD'?'U$D':currency==='EUR'?'€':'$';
       const hasBanks = state.accounts.some(a=>!['cash','wallet'].includes(a.type));
-      const cashAcct   = state.accounts.find(a=>a.type==='cash');
+      const cashAccts   = state.accounts.filter(a=>a.type==='cash');
       const walletAccts = state.accounts.filter(a=>a.type==='wallet');
       const bankIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>`;
+      const topCount = (cashAccts.length?1:0)+(walletAccts.length?1:0);
       bodyHtml = `
         <div class="wizard-summary">
           <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${sym} ${wizardFormatDisplay(s.amount)}</span></div>
           <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
         </div>
         <div class="wizard-grid">
-          ${cashAcct ? `
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('cash')">
+          ${cashAccts.length ? `
+          <div class="wizard-cat-btn" onclick="${cashAccts.length===1?`wizardSelectAcct('${cashAccts[0].id}')`:`wizardAcctSub('cash')`}">
             <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
             <div class="wizard-cat-name">Efectivo</div>
+            ${cashAccts.length>1?`<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>`:''}
           </div>` : ''}
-          ${walletAccts.map(wa=>`
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('wallet','${wa.id}')">
-            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(wa,32)}</div>
-            <div class="wizard-cat-name">${wa.name}</div>
-          </div>`).join('')}
+          ${walletAccts.length ? `
+          <div class="wizard-cat-btn" onclick="wizardAcctSub('wallets')">
+            <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
+            <div class="wizard-cat-name">Billeteras</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
+          </div>` : ''}
           ${hasBanks ? `
-          <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="${(cashAcct?1:0)+(walletAccts.length)===1?'grid-column:1/-1':''}">
+          <div class="wizard-cat-btn" onclick="wizardAcctPickType('bank')" style="${topCount%2===0?'grid-column:1/-1':''}">
             <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${bankIconSvg}</div>
             <div class="wizard-cat-name">Banco</div>
             <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
           </div>` : ''}
         </div>`;
+
+    // ── SUB-PASO: elegir efectivo (>1 cuenta) ─────────────────────
+    } else if(s.acctSubStep === 'cash') {
+      titleText = 'Efectivo';
+      const cashAccts2 = state.accounts.filter(a=>a.type==='cash').sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+      bodyHtml = `<div class="wizard-grid">
+        ${cashAccts2.map(ca=>`<div class="wizard-cat-btn" onclick="wizardSelectAcct('${ca.id}')">
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
+          <div class="wizard-cat-name">${_escHtml(ca.name)}</div>
+        </div>`).join('')}
+      </div>`;
+
+    // ── SUB-PASO: elegir billetera ────────────────────────────────
+    } else if(s.acctSubStep === 'wallets') {
+      titleText = 'Billeteras';
+      const wallets2 = state.accounts.filter(a=>a.type==='wallet').sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+      bodyHtml = `<div class="wizard-grid">
+        ${wallets2.map(wa=>`<div class="wizard-cat-btn" onclick="wizardSelectAcct('${wa.id}')">
+          <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">${_acctLogoDot(wa,32)}</div>
+          <div class="wizard-cat-name">${_escHtml(wa.name)}</div>
+        </div>`).join('')}
+      </div>`;
 
     // ── SUB-PASO: elegir banco ────────────────────────────────────
     } else if(s.acctSubStep === 'bank') {
@@ -1997,11 +2022,16 @@ function wizardBack() {
   if(s.step === 4) {
     if(s.acctSubStep === 'instrument') { s.acctSubStep = 'bank'; renderWizard(); return; }
     if(s.acctSubStep === 'bank')       { s.acctSubStep = 'type'; renderWizard(); return; }
+    if(s.acctSubStep === 'cash' || s.acctSubStep === 'wallets') { s.acctSubStep = 'type'; renderWizard(); return; }
     // acctSubStep === 'type' → back to step 3
   }
   if(s.step > 1) { s.step--; s.acctSubStep = 'type'; renderWizard(); }
 }
 
+function wizardAcctSub(sub) {
+  wizardState.acctSubStep = sub;
+  renderWizard();
+}
 function wizardAcctPickType(kind, acctId) {
   const s = wizardState;
   if(kind === 'bank') {
