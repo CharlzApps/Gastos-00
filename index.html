@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.32';
+const APP_VERSION = 'v2.33';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -2448,14 +2448,14 @@ function _fpRenderBody() {
       + '</div>';
 
   } else if(_fpStep === 'account') {
-    var cashAcct = state.accounts.find(function(a){ return a.type==='cash'; });
+    var cashAccts = state.accounts.filter(function(a){ return a.type==='cash'; });
     var walletAccts = state.accounts.filter(function(a){ return a.type==='wallet'; });
     var hasBanks = state.accounts.some(function(a){ return !['cash','wallet'].includes(a.type); });
     var bankIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>';
     html = '<div class="wizard-grid">'
-      + (cashAcct ? '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+cashAcct.id+'\')" style="'+(formState.accountId===cashAcct.id?'border:2px solid var(--accent)':'')+'">'
+      + cashAccts.map(function(ca){ return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+ca.id+'\')" style="'+(formState.accountId===ca.id?'border:2px solid var(--accent)':'')+'">'
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
-          +'<div class="wizard-cat-name">Efectivo</div></div>' : '')
+          +'<div class="wizard-cat-name">'+_escHtml(ca.name)+'</div></div>'; }).join('')
       + walletAccts.map(function(wa){
           return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+wa.id+'\')" style="'+(formState.accountId===wa.id?'border:2px solid var(--accent)':'')+'">'
             +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px">'+_acctLogoDot(wa,32)+'</div>'
@@ -5707,17 +5707,15 @@ function openTransferModal(editGroupId) {
       <!-- FROM -->
       <div class="field" style="margin-bottom:8px">
         <label>De</label>
-        <select id="tf-from" onchange="onTransferAcctChange()">
-          ${accts.map(a=>`<option value="${a.id}" ${a.id===fromId?'selected':''}>${a.name}</option>`).join('')}
-        </select>
+        <div id="tf-from-disp" class="form-picker-btn" onclick="_tfPick('from')">${_tfAcctDispHtml(fromAcct)}</div>
+        <input type="hidden" id="tf-from" value="${fromId}">
       </div>
 
       <!-- TO -->
       <div class="field" style="margin-bottom:10px">
         <label>A</label>
-        <select id="tf-to" onchange="onTransferAcctChange()">
-          ${accts.map(a=>`<option value="${a.id}" ${a.id===toId?'selected':''}>${a.name}</option>`).join('')}
-        </select>
+        <div id="tf-to-disp" class="form-picker-btn" onclick="_tfPick('to')">${_tfAcctDispHtml(toAcct)}</div>
+        <input type="hidden" id="tf-to" value="${toId}">
       </div>
 
       <!-- AMOUNTS -->
@@ -6899,6 +6897,71 @@ function showAccountsByType(group) {
     +'<div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:6px">'+body+'</div>'
     +'</div></div>';
   document.getElementById('modal-root').innerHTML = html;
+}
+
+// ===== Picker reutilizable de cuentas (dos pasos, agrupado) — overlay sobre cualquier modal =====
+var _acctPickCb = null, _acctPickCur = null;
+function _acctPickOpen(currentId, cb){
+  _acctPickCb = cb; _acctPickCur = currentId||null;
+  var ov = document.createElement('div');
+  ov.id = 'acct-pick-overlay';
+  ov.className = 'form-picker-overlay';
+  ov.innerHTML = '<div style="flex:1;background:rgba(0,0,0,0.4)" onclick="_acctPickClose()"></div>'
+    + '<div class="form-picker-sheet"><div id="acct-pick-inner" style="overflow-y:auto;padding:0 0 24px"></div></div>';
+  document.body.appendChild(ov);
+  _acctPickGroups();
+}
+function _acctPickClose(){ var n=document.getElementById('acct-pick-overlay'); if(n) n.remove(); _acctPickCb=null; }
+function _acctPickChoose(id){ var cb=_acctPickCb; _acctPickClose(); if(cb) cb(id); }
+function _acctPickGroups(){
+  var inner=document.getElementById('acct-pick-inner'); if(!inner) return;
+  var accounts=state.accounts.filter(function(a){return a.id!=='__unassigned__';});
+  var GRP_ORDER=['cash','banco','wallet','invest','other'];
+  var grpCount={};
+  accounts.forEach(function(a){var g=_acctGroupOf(a);grpCount[g]=(grpCount[g]||0)+1;});
+  var rows=GRP_ORDER.filter(function(g){return grpCount[g];}).map(function(g){
+    var ico=_svgSized((ACCT_ICONS[_ACCT_GRP_ICON[g]]||ACCT_ICONS.other).svg,21);
+    return _pickerRow("_acctPickGroup('"+g+"')",ico,_ACCT_GRP_LBL[g],grpCount[g]+' cuenta'+(grpCount[g]!==1?'s':''),false);
+  }).join('');
+  inner.innerHTML='<div style="padding:14px 16px 8px;display:flex;align-items:center;gap:8px"><span style="font-size:15px;font-weight:600;flex:1">Seleccionar cuenta</span><button onclick="_acctPickClose()" style="width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button></div>'
+    +'<div style="padding:0 16px;display:flex;flex-direction:column;gap:6px">'+rows+'</div>';
+}
+function _acctPickGroup(group){
+  var inner=document.getElementById('acct-pick-inner'); if(!inner) return;
+  var sortFn=function(a,b){return a.name.localeCompare(b.name,'es',{sensitivity:'base'});};
+  var cur=_acctPickCur;
+  var rowFor=function(a){
+    var sel=cur===a.id;
+    return '<div onclick="_acctPickChoose(\''+a.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;'+(sel?'border-color:var(--accent);':'')+'">'
+      +_acctLogoDot(a,30)
+      +'<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:500">'+_escHtml(a.name)+'</div></div>'
+      +(sel?'<span style="color:var(--accent)">✓</span>':'')+'</div>';
+  };
+  var body='';
+  if(group==='banco'){
+    var cuentas=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&a.type==='account';}).sort(sortFn);
+    var tarjetas=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&a.type==='credit';}).sort(sortFn);
+    var sec=function(l){return '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:10px 2px 2px">'+l+'</div>';};
+    if(cuentas.length) body+=sec('Cuentas')+cuentas.map(rowFor).join('');
+    if(tarjetas.length) body+=sec('Tarjetas')+tarjetas.map(rowFor).join('');
+  } else {
+    body=state.accounts.filter(function(a){return a.id!=='__unassigned__'&&_acctGroupOf(a)===group;}).sort(sortFn).map(rowFor).join('');
+  }
+  if(!body) body='<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
+  inner.innerHTML='<div style="padding:14px 16px 8px;display:flex;align-items:center;gap:8px"><button onclick="_acctPickGroups()" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2)">←</button><span style="font-size:15px;font-weight:600;flex:1">'+(_ACCT_GRP_LBL[group]||'Cuentas')+'</span><button onclick="_acctPickClose()" style="width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:18px;color:var(--text3)">✕</button></div>'
+    +'<div style="padding:0 16px;display:flex;flex-direction:column;gap:6px">'+body+'</div>';
+}
+function _tfAcctDispHtml(a){
+  return (a?_acctLogoDot(a,26):'')+'<span style="flex:1;font-size:14px">'+(a?_escHtml(a.name):'—')+'</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--text3);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>';
+}
+function _tfPick(which){
+  var hid=document.getElementById('tf-'+which); var cur=hid?hid.value:'';
+  _acctPickOpen(cur, function(id){
+    var a=state.accounts.find(function(x){return x.id===id;}); if(!a) return;
+    var h=document.getElementById('tf-'+which); if(h) h.value=id;
+    var disp=document.getElementById('tf-'+which+'-disp'); if(disp) disp.innerHTML=_tfAcctDispHtml(a);
+    onTransferAcctChange();
+  });
 }
 </script>
 <script>
