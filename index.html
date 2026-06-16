@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.43';
+const APP_VERSION = 'v2.44';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -3946,7 +3946,7 @@ function renderConfig() {
   cl.innerHTML = sortedCats.map(c=>{
     return `
     <div>
-      <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="window._catDetailReturn='config';openCatDetailModal('${c.code}')">
+      <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="window._catsScope='__all__';window._catDetailReturn='config';openCatDetailModal('${c.code}')">
         <div style="width:32px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
@@ -4156,9 +4156,13 @@ function renderConfig() {
 function openCategoriesModal(y, m) {
   y = y ?? currentYear;
   m = m ?? (currentMonth + 1);
+  // El menú Categorías (desde el header de Home) scopea a la cuenta/grupo en curso, igual que Home.
+  window._catsScope = state.currentAccountId;
+  const _scInfo = _currentAcctBalance();
+  const _scopeName = _scInfo ? _scInfo.name : 'Todas las cuentas';
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const key = `${y}-${String(m).padStart(2,'0')}`;
-  const monthTxs = state.txs.filter(t => t.date && t.date.slice(0,7)===key && !t.transferGroup);
+  const monthTxs = state.txs.filter(t => t.date && t.date.slice(0,7)===key && !t.transferGroup && _catsScopeMatch(t.accountId));
   function _aggByType(tp){
     const by={};
     monthTxs.filter(t=>t.type===tp).forEach(t=>{ const c=t.catCode||'OTRO'; if(!by[c]) by[c]={code:c,total:0,count:0}; by[c].total+=t.amount; by[c].count++; });
@@ -4221,7 +4225,7 @@ function openCategoriesModal(y, m) {
       <div class="modal-handle"></div>
       <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 6px">
         <span style="width:36px;height:36px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></span>
-        <div style="flex:1"><div style="font-size:16px;font-weight:600">Categorías</div></div>
+        <div style="flex:1"><div style="font-size:16px;font-weight:600">Categorías</div><div style="font-size:11px;color:var(--text3)">${_escHtml(_scopeName)}</div></div>
         <button onclick="closeModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px">✕</button>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px">
@@ -4250,6 +4254,7 @@ function openCatDetailModal(code, y, m) {
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
+    if(!_catsScopeMatch(t.accountId)) return false;
     const d = t.date.slice(0,7);
     return d === `${y}-${String(m).padStart(2,'0')}`;
   }).sort((a,b)=>b.id.localeCompare(a.id));
@@ -4318,6 +4323,7 @@ function openSubcatDetail(code, sub, y, m) {
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
     if((t.subcat || '') !== sub) return false;
+    if(!_catsScopeMatch(t.accountId)) return false;
     return t.date.slice(0,7) === `${y}-${String(m).padStart(2,'0')}`;
   }).sort((a,b)=>b.id.localeCompare(a.id));
   const total = txs.reduce((s,t)=>s+(t.type==='expense'?-t.amount:t.amount),0);
@@ -6119,6 +6125,24 @@ function getMonthTxs(y, m, accountId) {
     }
     return matchMonth && matchAccount;
   });
+}
+// Scope de cuenta para el menú Categorías (set en los puntos de entrada):
+//   '__all__'        → todas las cuentas (origen Config→Categorías)
+//   null/undefined   → grupo de la 1ª moneda visible (default, igual que getMonthTxs)
+//   '__group_CUR__'  → cuentas de esa moneda
+//   id real          → esa cuenta
+function _catsScopeMatch(accountId) {
+  var scope = window._catsScope;
+  if(scope === '__all__') return true;
+  if(!scope) {
+    var cur0 = getVisibleCurrencies()[0]||'ARS';
+    return getGroupAccounts(cur0).map(function(a){return a.id;}).indexOf(accountId) >= 0;
+  }
+  if(String(scope).indexOf('__group_')===0) {
+    var cur1 = String(scope).slice(8,-2);
+    return getGroupAccounts(cur1).map(function(a){return a.id;}).indexOf(accountId) >= 0;
+  }
+  return accountId === scope;
 }
 // Saldo real de la cuenta/grupo en curso (acumulado hasta hoy; crédito = deuda all-time incl. cuotas).
 // Devuelve {bal, cur, isCredit, isGroup, name} o null.
