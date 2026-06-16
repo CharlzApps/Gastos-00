@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.41';
+const APP_VERSION = 'v2.42';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -3933,7 +3933,7 @@ function renderConfig() {
   cl.innerHTML = sortedCats.map(c=>{
     return `
     <div>
-      <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="openCatDetailModal('${c.code}')">
+      <div class="cat-row" style="cursor:pointer;padding:12px 14px" onclick="window._catDetailReturn='config';openCatDetailModal('${c.code}')">
         <div style="width:32px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">${getCatIcon(c).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
@@ -4181,7 +4181,7 @@ function openCategoriesModal(y, m) {
       const catObj = state.categories.find(x=>x.code===c.code);
       const ico = catObj ? _svgSized(getCatIcon(catObj), 22) : '';
       const w = Math.max(3, Math.round((c.total/max)*100));
-      return '<div onclick="openCatDetailModal(\''+c.code+'\','+y+','+m+')" style="padding:11px 16px;border-bottom:0.5px solid var(--border);cursor:pointer">'
+      return '<div onclick="window._catDetailReturn=\'cats\';openCatDetailModal(\''+c.code+'\','+y+','+m+')" style="padding:11px 16px;border-bottom:0.5px solid var(--border);cursor:pointer">'
         +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
         +'<span style="width:24px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0">'+ico+'</span>'
         +'<span style="flex:1;font-size:14px;font-family:var(--mono)">'+_escHtml(c.code)+'</span>'
@@ -4220,6 +4220,13 @@ function openCategoriesModal(y, m) {
     </div>
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
+}
+
+function _catDetailBack(y, m){
+  // Vuelve al lugar desde donde se abrió el detalle de categoría:
+  // 'cats' = menú Categorías (re-abre la lista); si no, cierra (revela Config).
+  if(window._catDetailReturn === 'cats') openCategoriesModal(y, m);
+  else closeModal();
 }
 
 function openCatDetailModal(code, y, m) {
@@ -4261,6 +4268,7 @@ function openCatDetailModal(code, y, m) {
     <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
       <div class="modal-handle"></div>
       <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 6px">
+        <button onclick="_catDetailBack(${y},${m})" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
         <div style="width:36px;height:36px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">${getCatIcon(cat).replace(/<svg[^>]*>/,'').replace('</svg>','')}</svg>
         </div>
