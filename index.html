@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.36';
+const APP_VERSION = 'v2.37';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1858,10 +1858,10 @@ function renderWizard() {
         </div>
         <div class="wizard-grid">
           ${cashAccts.length ? `
-          <div class="wizard-cat-btn" onclick="${cashAccts.length===1?`wizardSelectAcct('${cashAccts[0].id}')`:`wizardAcctSub('cash')`}">
+          <div class="wizard-cat-btn" onclick="wizardAcctSub('cash')">
             <div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">${ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')}</div>
             <div class="wizard-cat-name">Efectivo</div>
-            ${cashAccts.length>1?`<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>`:''}
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div>
           </div>` : ''}
           ${walletAccts.length ? `
           <div class="wizard-cat-btn" onclick="wizardAcctSub('wallets')">
@@ -2428,8 +2428,8 @@ function _fpRender() {
 function _fpRenderHeader() {
   var hdr = document.getElementById('fp-header');
   if(!hdr) return;
-  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', wallets:'Billeteras', bank:'Banco', instrument:_fpData.bank||'Instrumento' };
-  var canBack = (_fpStep==='subcat' || _fpStep==='wallets' || _fpStep==='bank' || _fpStep==='instrument');
+  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', cashsel:'Efectivo', wallets:'Billeteras', bank:'Banco', instrument:_fpData.bank||'Instrumento' };
+  var canBack = (_fpStep==='subcat' || _fpStep==='cashsel' || _fpStep==='wallets' || _fpStep==='bank' || _fpStep==='instrument');
   hdr.innerHTML = (canBack
     ? '<button onclick="_fpBack()" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center">←</button>'
     : '<div style="width:32px"></div>')
@@ -2439,6 +2439,7 @@ function _fpRenderHeader() {
 
 function _fpBack() {
   if(_fpStep==='subcat')    { _fpStep='cat';    _fpRender(); }
+  else if(_fpStep==='cashsel') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='wallets') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='bank') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='instrument') { _fpStep='bank'; _fpRender(); }
@@ -2484,9 +2485,10 @@ function _fpRenderBody() {
     var hasBanks = state.accounts.some(function(a){ return !['cash','wallet'].includes(a.type); });
     var bankIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>';
     html = '<div class="wizard-grid">'
-      + cashAccts.map(function(ca){ return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+ca.id+'\')" style="'+(formState.accountId===ca.id?'border:2px solid var(--accent)':'')+'">'
+      + (cashAccts.length ? '<div class="wizard-cat-btn" onclick="_fpStep=\'cashsel\';_fpRender()">'
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
-          +'<div class="wizard-cat-name">'+_escHtml(ca.name)+'</div></div>'; }).join('')
+          +'<div class="wizard-cat-name">Efectivo</div>'
+          +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
       + (walletAccts.length ? '<div class="wizard-cat-btn" onclick="_fpStep=\'wallets\';_fpRender()">'
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.wallet.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
           +'<div class="wizard-cat-name">Billeteras</div>'
@@ -2495,6 +2497,16 @@ function _fpRenderBody() {
           +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+bankIconSvg+'</div>'
           +'<div class="wizard-cat-name">Banco</div>'
           +'<div style="font-size:10px;color:var(--text3);margin-top:2px">Elegir →</div></div>' : '')
+      + '</div>';
+
+  } else if(_fpStep === 'cashsel') {
+    var cash2 = state.accounts.filter(function(a){ return a.type==='cash'; }).sort(function(a,b){ return a.name.localeCompare(b.name,'es',{sensitivity:'base'}); });
+    html = '<div class="wizard-grid">'
+      + cash2.map(function(ca){
+          return '<div class="wizard-cat-btn" onclick="_fpSelectAcct(\''+ca.id+'\')" style="'+(formState.accountId===ca.id?'border:2px solid var(--accent)':'')+'">'
+            +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:32px;color:var(--text2)">'+ACCT_ICONS.cash.svg.replace('width="17" height="17"','width="26" height="26"')+'</div>'
+            +'<div class="wizard-cat-name">'+_escHtml(ca.name)+'</div></div>';
+        }).join('')
       + '</div>';
 
   } else if(_fpStep === 'wallets') {
