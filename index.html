@@ -680,7 +680,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.40';
+const APP_VERSION = 'v2.41';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1911,10 +1911,17 @@ function renderWizard() {
         }).join('')}
       </div>`;
 
-    // ── SUB-PASO: elegir instrumento (Cuentas / Tarjetas) ─────────
+    // ── SUB-PASO: banco → 2 botones Cuentas/Tarjetas ──────────────
     } else if(s.acctSubStep === 'instrument') {
       titleText = s.acctBank;
-      bodyHtml = _bankAcctGridHtml(s.acctBank, function(id){ return "wizardSelectAcct('"+id+"')"; }, s.accountId);
+      bodyHtml = _bankEntryHtml(s.acctBank,
+        function(k){ return "wizardPickKind('"+k+"')"; },
+        function(id){ return "wizardSelectAcct('"+id+"')"; }, s.accountId);
+
+    // ── SUB-PASO: lista de cuentas o tarjetas del banco ───────────
+    } else if(s.acctSubStep === 'instrkind') {
+      titleText = (s.acctKind==='tarjetas'?'Tarjetas':'Cuentas')+' · '+s.acctBank;
+      bodyHtml = _bankKindGridHtml(s.acctBank, s.acctKind||'cuentas', function(id){ return "wizardSelectAcct('"+id+"')"; }, s.accountId);
     }
   } else if(s.step === 5) {
     titleText = 'Cuotas';
@@ -1991,6 +1998,7 @@ function wizardNext() {
 function wizardBack() {
   const s = wizardState;
   if(s.step === 4) {
+    if(s.acctSubStep === 'instrkind') { s.acctSubStep = 'instrument'; renderWizard(); return; }
     if(s.acctSubStep === 'instrument') { s.acctSubStep = 'bank'; renderWizard(); return; }
     if(s.acctSubStep === 'bank')       { s.acctSubStep = 'type'; renderWizard(); return; }
     if(s.acctSubStep === 'cash' || s.acctSubStep === 'wallets') { s.acctSubStep = 'type'; renderWizard(); return; }
@@ -2020,6 +2028,11 @@ function wizardAcctPickType(kind, acctId) {
 function wizardAcctPickBank(bank) {
   wizardState.acctBank = bank;
   wizardState.acctSubStep = 'instrument';
+  renderWizard();
+}
+function wizardPickKind(kind) {
+  wizardState.acctKind = kind;
+  wizardState.acctSubStep = 'instrkind';
   renderWizard();
 }
 
@@ -2399,8 +2412,8 @@ function _fpRender() {
 function _fpRenderHeader() {
   var hdr = document.getElementById('fp-header');
   if(!hdr) return;
-  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', cashsel:'Efectivo', wallets:'Billeteras', bank:'Banco', instrument:_fpData.bank||'Instrumento' };
-  var canBack = (_fpStep==='subcat' || _fpStep==='cashsel' || _fpStep==='wallets' || _fpStep==='bank' || _fpStep==='instrument');
+  var titles = { cat:'Categoría', subcat:'Subcategoría', account:'Cuenta', cashsel:'Efectivo', wallets:'Billeteras', bank:'Banco', instrument:_fpData.bank||'Instrumento', instrkind:(_fpData.kind==='tarjetas'?'Tarjetas':'Cuentas')+' · '+(_fpData.bank||'') };
+  var canBack = (_fpStep==='subcat' || _fpStep==='cashsel' || _fpStep==='wallets' || _fpStep==='bank' || _fpStep==='instrument' || _fpStep==='instrkind');
   hdr.innerHTML = (canBack
     ? '<button onclick="_fpBack()" style="width:32px;height:32px;border:none;background:var(--bg3);border-radius:50%;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center">←</button>'
     : '<div style="width:32px"></div>')
@@ -2414,6 +2427,7 @@ function _fpBack() {
   else if(_fpStep==='wallets') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='bank') { _fpStep='account'; _fpRender(); }
   else if(_fpStep==='instrument') { _fpStep='bank'; _fpRender(); }
+  else if(_fpStep==='instrkind') { _fpStep='instrument'; _fpRender(); }
 }
 
 function _fpRenderBody() {
@@ -2493,7 +2507,12 @@ function _fpRenderBody() {
 
   } else if(_fpStep === 'instrument') {
     var bk = _fpData.bank||'';
-    html = _bankAcctGridHtml(bk, function(id){ return "_fpSelectAcct('"+id+"')"; }, formState.accountId);
+    html = _bankEntryHtml(bk,
+      function(k){ return "_fpPickKind('"+k+"')"; },
+      function(id){ return "_fpSelectAcct('"+id+"')"; }, formState.accountId);
+
+  } else if(_fpStep === 'instrkind') {
+    html = _bankKindGridHtml(_fpData.bank||'', _fpData.kind||'cuentas', function(id){ return "_fpSelectAcct('"+id+"')"; }, formState.accountId);
   }
   inner.innerHTML = html;
 }
@@ -2525,6 +2544,11 @@ function _fpSelectSub(sub) {
 function _fpPickBank(bank) {
   _fpData.bank = bank;
   _fpStep = 'instrument';
+  _fpRender();
+}
+function _fpPickKind(kind) {
+  _fpData.kind = kind;
+  _fpStep = 'instrkind';
   _fpRender();
 }
 
@@ -6900,13 +6924,26 @@ function _pickerBackHeader(title, backCall){
     +'<button onclick="'+backCall+'" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;display:flex;align-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>'
     +'<span style="font-size:16px;font-weight:600;flex:1">'+_escHtml(title)+'</span></div>';
 }
-// Banco → cuentas/tarjetas de ese banco (selector global)
+// Banco → 2 botones Cuentas/Tarjetas (selector global)
 function showBankAccounts(bankKey){
   var selId = state.currentAccountId;
-  var grid = _bankAcctGridHtml(bankKey, function(id){ return "selectGlobalAccount('"+id+"')"; }, selId);
+  var grid = _bankEntryHtml(bankKey,
+    function(k){ return "showBankKind('"+_escQ(bankKey)+"','"+k+"')"; },
+    function(id){ return "selectGlobalAccount('"+id+"')"; }, selId);
   var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
     +'<div class="modal-sheet"><div class="modal-handle"></div>'
     +_pickerBackHeader(bankKey,"showAccountsByType('banco')")
+    +'<div style="padding:0 16px 24px">'+grid+'</div>'
+    +'</div></div>';
+  document.getElementById('modal-root').innerHTML = html;
+}
+// Banco + tipo → lista (selector global)
+function showBankKind(bankKey, kind){
+  var selId = state.currentAccountId;
+  var grid = _bankKindGridHtml(bankKey, kind, function(id){ return "selectGlobalAccount('"+id+"')"; }, selId);
+  var html = '<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">'
+    +'<div class="modal-sheet"><div class="modal-handle"></div>'
+    +_pickerBackHeader((kind==='tarjetas'?'Tarjetas':'Cuentas')+' · '+bankKey, "showBankAccounts('"+_escQ(bankKey)+"')")
     +'<div style="padding:0 16px 24px">'+grid+'</div>'
     +'</div></div>';
   document.getElementById('modal-root').innerHTML = html;
@@ -6953,6 +6990,34 @@ function _bankAcctGridHtml(bankKey, onclickAcct, selId){
   var accts=_bankAcctsOf(bankKey);
   if(!accts.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
   return '<div class="wizard-grid">'+accts.map(function(a){return _bankAcctCard(a,onclickAcct,selId);}).join('')+'</div>';
+}
+// ----- Banco → 2 botones Cuentas/Tarjetas → lista del tipo elegido -----
+function _bankHasKind(bankKey, kind){
+  return _bankAcctsOf(bankKey).some(function(a){ return kind==='tarjetas' ? a.type==='credit' : a.type!=='credit'; });
+}
+function _bankKindCard(label, iconSvg, onclick){
+  return '<div class="wizard-cat-btn" onclick="'+onclick+'">'
+    +'<div class="wizard-cat-emoji" style="display:flex;align-items:center;justify-content:center;height:36px;color:var(--text2)">'+iconSvg+'</div>'
+    +'<div class="wizard-cat-name" style="font-size:16px;font-weight:600">'+label+'</div></div>';
+}
+// Pantalla de entrada al banco: si tiene ambos tipos muestra 2 botones; si tiene uno solo, lista directa.
+// mkKindClick(kind)->onclick ; mkAcctClick(id)->onclick
+function _bankEntryHtml(bankKey, mkKindClick, mkAcctClick, selId){
+  var hasC=_bankHasKind(bankKey,'cuentas'), hasT=_bankHasKind(bankKey,'tarjetas');
+  if(hasC && hasT){
+    var cIco=ACCT_ICONS.account.svg.replace('width="17" height="17"','width="32" height="32"');
+    var tIco=ACCT_ICONS.credit.svg.replace('width="17" height="17"','width="32" height="32"');
+    return '<div class="wizard-grid">'
+      + _bankKindCard('Cuentas', cIco, mkKindClick('cuentas'))
+      + _bankKindCard('Tarjetas', tIco, mkKindClick('tarjetas'))
+      + '</div>';
+  }
+  return _bankKindGridHtml(bankKey, hasT?'tarjetas':'cuentas', mkAcctClick, selId);
+}
+function _bankKindGridHtml(bankKey, kind, mkAcctClick, selId){
+  var accts=_bankAcctsOf(bankKey).filter(function(a){ return kind==='tarjetas' ? a.type==='credit' : a.type!=='credit'; });
+  if(!accts.length) return '<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">Sin cuentas</div>';
+  return '<div class="wizard-grid">'+accts.map(function(a){return _bankAcctCard(a,mkAcctClick,selId);}).join('')+'</div>';
 }
 
 // ===== Picker reutilizable de cuentas (dos pasos, agrupado) — overlay sobre cualquier modal =====
@@ -7008,8 +7073,15 @@ function _acctPickHeader(title, backCall){
 }
 function _acctPickBank(bankKey){
   var inner=document.getElementById('acct-pick-inner'); if(!inner) return;
-  var grid=_bankAcctGridHtml(bankKey, function(id){ return "_acctPickChoose('"+id+"')"; }, _acctPickCur);
+  var grid=_bankEntryHtml(bankKey,
+    function(k){ return "_acctPickBankKind('"+_escQ(bankKey)+"','"+k+"')"; },
+    function(id){ return "_acctPickChoose('"+id+"')"; }, _acctPickCur);
   inner.innerHTML=_acctPickHeader(bankKey,"_acctPickGroup('banco')")+'<div style="padding:0 16px">'+grid+'</div>';
+}
+function _acctPickBankKind(bankKey, kind){
+  var inner=document.getElementById('acct-pick-inner'); if(!inner) return;
+  var grid=_bankKindGridHtml(bankKey, kind, function(id){ return "_acctPickChoose('"+id+"')"; }, _acctPickCur);
+  inner.innerHTML=_acctPickHeader((kind==='tarjetas'?'Tarjetas':'Cuentas')+' · '+bankKey, "_acctPickBank('"+_escQ(bankKey)+"')")+'<div style="padding:0 16px">'+grid+'</div>';
 }
 function _tfAcctDispHtml(a){
   return (a?_acctLogoDot(a,26):'')+'<span style="flex:1;font-size:14px">'+(a?_escHtml(a.name):'—')+'</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="color:var(--text3);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>';
