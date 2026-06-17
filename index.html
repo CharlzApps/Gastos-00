@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.45';
+const APP_VERSION = 'v2.48';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4162,7 +4162,7 @@ function openCategoriesModal(y, m) {
   const _scopeName = _scInfo ? _scInfo.name : 'Todas las cuentas';
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const key = `${y}-${String(m).padStart(2,'0')}`;
-  const monthTxs = state.txs.filter(t => t.date && t.date.slice(0,7)===key && !t.transferGroup && _catsScopeMatch(t.accountId));
+  const monthTxs = state.txs.filter(t => t.date && t.date.slice(0,7)===key && !t.transferGroup && !t.fxLink && _catsScopeMatch(t.accountId));
   function _aggByType(tp){
     const by={};
     monthTxs.filter(t=>t.type===tp).forEach(t=>{ const c=t.catCode||'OTRO'; if(!by[c]) by[c]={code:c,total:0,count:0}; by[c].total+=t.amount; by[c].count++; });
@@ -4173,6 +4173,45 @@ function openCategoriesModal(y, m) {
   const gTot = gastos.reduce((s,c)=>s+c.total,0);
   const iTot = ingresos.reduce((s,c)=>s+c.total,0);
   const cats = gastos.concat(ingresos);
+  // Transferencias del mes en esta cuenta (NO son gasto/ingreso → bloque aparte).
+  // Solo en vista de cuenta puntual; en grupo/todas netean a ~0 y solo agregan ruido.
+  const _scopeIsSingle = (function(){ var s=window._catsScope; return !!(s && s!=='__all__' && String(s).indexOf('__group_')!==0); })();
+  let _trIn=0, _trOut=0, _trCount=0;
+  if(_scopeIsSingle){
+    state.txs.forEach(t=>{
+      if(!t.date || t.date.slice(0,7)!==key) return;
+      if(t.transferGroup){ // modelo de 2 legs (saveTransfer)
+        if(_catsScopeMatch(t.accountId)){
+          if(t.type==='income'){ _trIn+=t.amount; _trCount++; }
+          else if(t.type==='expense'){ _trOut+=t.amount; _trCount++; }
+        }
+      } else if(t.type==='transfer'){ // modelo de 1 registro
+        if(_catsScopeMatch(t.accountId)){ _trOut+=t.amount; _trCount++; }
+        else if(t.toAccountId && _catsScopeMatch(t.toAccountId)){ _trIn+=t.amount; _trCount++; }
+      } else if(t.fxLink){ // transferencia entre monedas (2 legs con fxLink); cada cuenta ve su leg en su moneda
+        if(_catsScopeMatch(t.accountId)){
+          if(t.type==='income'){ _trIn+=t.amount; _trCount++; }
+          else if(t.type==='expense'){ _trOut+=t.amount; _trCount++; }
+        }
+      }
+    });
+  }
+  const _hasTransfers = _trCount>0;
+  const _trNet = _trIn - _trOut;
+  const _trBlock = _hasTransfers
+    ? '<div style="margin:10px 12px 0;border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden">'
+      +'<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(32,96,192,0.06)">'
+      +'<span style="width:26px;height:26px;border-radius:50%;background:rgba(32,96,192,0.12);color:var(--blue);display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+      +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>'
+      +'</span>'
+      +'<span style="flex:1;font-size:14px;font-weight:600;color:var(--blue)">Transferencias</span>'
+      +'<span style="font-size:14px;font-family:var(--mono);font-weight:600;color:var(--blue)">'+(_trNet>=0?'+':'−')+fmtAmt(Math.abs(_trNet))+'</span>'
+      +'</div>'
+      +'<div style="display:flex;gap:16px;padding:9px 14px 11px 50px;font-family:var(--mono);font-size:12px;color:var(--text2)">'
+      +'<span>↑ entró '+fmtAmt(_trIn)+'</span><span>↓ salió '+fmtAmt(_trOut)+'</span>'
+      +'</div>'
+      +'</div>'
+    : '';
   let py=y, pm=m-1; if(pm<1){pm=12;py--;}
   let ny=y, nm=m+1; if(nm>12){nm=1;ny++;}
   // --- Medidor semicircular (balance del mes) ---
@@ -4218,8 +4257,10 @@ function openCategoriesModal(y, m) {
     return head + inner;
   }
   const rows = cats.length
-    ? _section('Ingresos', iTot, 'var(--green)', ingresos) + _section('Gastos', gTot, 'var(--red)', gastos)
-    : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>';
+    ? (_section('Ingresos', iTot, 'var(--green)', ingresos) + _section('Gastos', gTot, 'var(--red)', gastos) + _trBlock)
+    : (_hasTransfers
+        ? ('<div style="padding:26px 16px 4px;text-align:center;color:var(--text3);font-size:13px">Solo transferencias este mes</div>' + _trBlock)
+        : '<div style="padding:40px;text-align:center;color:var(--text3);font-size:13px">Sin movimientos este mes</div>');
   const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)" style="align-items:flex-start">
     <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
       <div class="modal-handle"></div>
@@ -4254,6 +4295,7 @@ function openCatDetailModal(code, y, m) {
   const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
+    if(t.transferGroup || t.fxLink) return false;
     if(!_catsScopeMatch(t.accountId)) return false;
     const d = t.date.slice(0,7);
     return d === `${y}-${String(m).padStart(2,'0')}`;
@@ -4323,6 +4365,7 @@ function openSubcatDetail(code, sub, y, m) {
   const txs = state.txs.filter(t => {
     if(t.catCode !== code) return false;
     if((t.subcat || '') !== sub) return false;
+    if(t.transferGroup || t.fxLink) return false;
     if(!_catsScopeMatch(t.accountId)) return false;
     return t.date.slice(0,7) === `${y}-${String(m).padStart(2,'0')}`;
   }).sort((a,b)=>b.id.localeCompare(a.id));
@@ -5220,6 +5263,11 @@ function openAccountModal(id) {
     <label style="margin-top:10px">Número de cuenta (para detectar resúmenes)</label>
     <input type="text" id="ac-nrocuenta" value="${a?.nroCuenta||''}" placeholder="Ej: 1107271845" inputmode="numeric"/>
     <div style="font-size:10px;color:var(--text3);margin-top:4px">Figura en el resumen (NRO/N° DE CUENTA). Al importar, identifica exactamente esta tarjeta. Se completa solo la primera vez que importás.</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <div style="flex:1"><label>Día de cierre</label><input type="number" id="ac-cierre-dia" min="1" max="31" value="${a?.cierreDia||''}" placeholder="28" inputmode="numeric"/></div>
+      <div style="flex:1"><label>Día de vto.</label><input type="number" id="ac-vto-dia" min="1" max="31" value="${a?.vtoDia||''}" placeholder="10" inputmode="numeric"/></div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:4px">Día nominal del mes (el resumen importado ajusta la fecha exacta). Sirve para saber en qué resumen cae cada consumo y proyectar vencimientos.</div>
   </div>`;
   const bankField = `<div class="field" id="ac-bank-wrap" style="${showBank?'':'display:none'}">
     <label id="ac-bank-label">${bankLabel}</label>
@@ -5410,15 +5458,19 @@ function saveAccount(id) {
   }
   const cardBrand = (document.getElementById('ac-card')?.value || '');
   const nroCuenta = (document.getElementById('ac-nrocuenta')?.value || '').replace(/[^0-9]/g,'');
+  const _cd = parseInt(document.getElementById('ac-cierre-dia')?.value, 10);
+  const _vd = parseInt(document.getElementById('ac-vto-dia')?.value, 10);
+  const cierreDia = (_cd>=1 && _cd<=31) ? _cd : null;
+  const vtoDia    = (_vd>=1 && _vd<=31) ? _vd : null;
   const inclToggle = document.getElementById('ac-include-toggle');
   const includeInGroup = inclToggle ? inclToggle.classList.contains('on') : true;
   const grupo = (document.getElementById('ac-grupo')?.value || '').trim();
   if(id) {
     const a = state.accounts.find(a=>a.id===id);
-    if(a) Object.assign(a, { name, type, currency, bank, cardBrand, nroCuenta, includeInGroup, grupo, updatedAt: Date.now() });
+    if(a) Object.assign(a, { name, type, currency, bank, cardBrand, nroCuenta, cierreDia, vtoDia, includeInGroup, grupo, updatedAt: Date.now() });
   } else {
     const newId = 'a'+Date.now();
-    state.accounts.push({ id:newId, name, type, currency, bank, cardBrand, nroCuenta, includeInGroup, grupo, updatedAt: Date.now() });
+    state.accounts.push({ id:newId, name, type, currency, bank, cardBrand, nroCuenta, cierreDia, vtoDia, includeInGroup, grupo, updatedAt: Date.now() });
     if(isDefault) state.defaultAccountId = newId;
   }
   if(isDefault && id) state.defaultAccountId = id;
@@ -6126,6 +6178,41 @@ function _catsScopeMatch(accountId) {
   }
   return accountId === scope;
 }
+// ── Módulo Tarjetas: lógica de período de facturación (v2.48) ──
+// Un consumo tiene 3 fechas: compra (su date), resumen al que pertenece (por cierre),
+// y vencimiento (cuándo se paga). Estas funciones derivan resumen/vto desde el ciclo
+// nominal (cierreDia/vtoDia) y, si existe, la fecha REAL de creditDates pisa la nominal.
+function _ymAdd(ym, n){ var y=+ym.slice(0,4), m=+ym.slice(5,7)-1+n; y+=Math.floor(m/12); m=((m%12)+12)%12; return y+'-'+String(m+1).padStart(2,'0'); }
+function _ymDayClamp(ym, dia){ var y=+ym.slice(0,4), m=+ym.slice(5,7); var last=new Date(y,m,0).getDate(); var dd=Math.min(Math.max(1,dia),last); return ym+'-'+String(dd).padStart(2,'0'); }
+// Fecha de cierre del mes ym para esta tarjeta (real de creditDates, o nominal por cierreDia).
+function _cardCierreDate(card, ym){
+  if(card && card.creditDates && card.creditDates[ym] && card.creditDates[ym].cierreDate) return card.creditDates[ym].cierreDate;
+  if(card && card.cierreDia) return _ymDayClamp(ym, card.cierreDia);
+  return null;
+}
+// 'YYYY-MM' del resumen (mes de cierre) al que pertenece un consumo por su fecha.
+function _cardStatementKey(card, dateStr){
+  var d = dateStr.slice(0,10);
+  var ym = dateStr.slice(0,7);
+  var c = _cardCierreDate(card, ym);
+  if(!c) return ym;                 // sin ciclo definido → mes calendario
+  return (d <= c) ? ym : _ymAdd(ym, 1);
+}
+// Fecha de vencimiento de un resumen (mes de cierre = stmtKey).
+function _cardVtoDate(card, stmtKey){
+  if(card && card.creditDates && card.creditDates[stmtKey] && card.creditDates[stmtKey].vencimientoDate) return card.creditDates[stmtKey].vencimientoDate;
+  if(!card || !card.vtoDia) return null;
+  // si el día de vto es menor al de cierre, el vencimiento cae el mes siguiente
+  var vym = (card.cierreDia && card.vtoDia < card.cierreDia) ? _ymAdd(stmtKey, 1) : stmtKey;
+  return _ymDayClamp(vym, card.vtoDia);
+}
+// 'YYYY-MM' en que se paga un consumo (mes del vencimiento de su resumen). Para Modo C.
+function _cardDueMonth(card, dateStr){
+  var k = _cardStatementKey(card, dateStr);
+  var v = _cardVtoDate(card, k);
+  return v ? v.slice(0,7) : k;
+}
+
 // Saldo real de la cuenta/grupo en curso (acumulado hasta hoy; crédito = deuda all-time incl. cuotas).
 // Devuelve {bal, cur, isCredit, isGroup, name} o null.
 function _currentAcctBalance() {
