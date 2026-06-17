@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.48';
+const APP_VERSION = 'v2.50';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1683,12 +1683,7 @@ function renderCreditDatesBar() {
   var mkKey = function(y,m0){ return y+'-'+pad2(m0+1); }; // m0 = 0-indexed
 
   var curKey  = mkKey(currentYear, currentMonth);
-  var nxtM0   = currentMonth===11 ? 0  : currentMonth+1;
-  var nxtY    = currentMonth===11 ? currentYear+1 : currentYear;
-  var nxtKey  = mkKey(nxtY, nxtM0);
-
   var cur  = acct.creditDates[curKey]  || {};
-  var nxt  = acct.creditDates[nxtKey]  || {};
 
   var inp = function(mKey, field, val) {
     return '<input type="date" value="'+val+'" onchange="saveCreditDate(\''+mKey+'\',\''+field+'\',this.value)"'
@@ -1696,19 +1691,15 @@ function renderCreditDatesBar() {
       +'font-size:12px;padding:4px 6px;width:100%;outline:none;color-scheme:light;box-sizing:border-box;font-family:var(--font)"/>';
   };
   var lbl = function(txt){ return '<div style="font-size:10px;color:var(--text3);margin-bottom:3px;">'+txt+'</div>'; };
-  var col = function(title, mKey, cDate, vDate, pl) {
-    var pad = pl ? 'padding-left:12px' : 'padding-right:12px';
-    return '<div style="'+pad+'">'
-      +'<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">'+title+'</div>'
-      +'<div style="margin-bottom:6px;">'+lbl('Cierre')+inp(mKey,'cierreDate',cDate)+'</div>'
-      +'<div>'+lbl('Vencimiento')+inp(mKey,'vencimientoDate',vDate)+'</div>'
-      +'</div>';
-  };
-  bar.innerHTML = '<div style="background:var(--bg3);border-radius:10px;border:0.5px solid var(--border);padding:10px 12px;">'
-    +'<div style="display:grid;grid-template-columns:1fr 1px 1fr;">'
-    +col('Actual',  curKey, cur.cierreDate||'',  cur.vencimientoDate||'',  false)
-    +'<div style="background:var(--border);"></div>'
-    +col('Próximo', nxtKey, nxt.cierreDate||'',  nxt.vencimientoDate||'',  true)
+  bar.innerHTML = '<div onclick="openCardStatement(\''+acct.id+'\')" style="display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:10px;border:0.5px solid var(--border);padding:11px 12px;margin-bottom:8px;cursor:pointer">'
+      +'<span style="width:30px;height:30px;border-radius:50%;background:'+appColorVal()+'18;color:'+appColorVal()+';display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>'
+      +'<span style="flex:1;font-size:14px;font-weight:500">Estado de cuenta</span>'
+      +'<span style="color:var(--text3);font-size:16px">›</span>'
+    +'</div>'
+    +'<div style="background:var(--bg3);border-radius:10px;border:0.5px solid var(--border);padding:10px 12px;">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    +'<div>'+lbl('Cierre')+inp(curKey,'cierreDate',cur.cierreDate||'')+'</div>'
+    +'<div>'+lbl('Vencimiento')+inp(curKey,'vencimientoDate',cur.vencimientoDate||'')+'</div>'
     +'</div></div>';
   // Android Chrome no refleja el atributo value en inputs type=date insertados via innerHTML.
   // Asignar .value por JS explícitamente después de insertar el DOM.
@@ -4400,6 +4391,69 @@ function openSubcatDetail(code, sub, y, m) {
     </div>
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
+}
+
+// ── Módulo Tarjetas: Estado de cuenta (resumen por período de cierre) v2.50 ──
+function openCardStatement(acctId, stmtKey) {
+  const card = state.accounts.find(a=>a.id===acctId && a.type==='credit');
+  if(!card){ showToast('No es una tarjeta de crédito'); return; }
+  const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  if(!stmtKey) stmtKey = _cardStatementKey(card, todayStr());
+  const sy=+stmtKey.slice(0,4), sm=+stmtKey.slice(5,7);
+  const prevKey=_ymAdd(stmtKey,-1), nextKey=_ymAdd(stmtKey,1);
+  // Consumos asignados a este resumen (por fecha vs cierre). Cuotas caen solas por su fecha.
+  const consumos = state.txs.filter(t=> t.accountId===acctId && t.type==='expense' && !t.transferGroup && !t.fxLink && _cardStatementKey(card,t.date)===stmtKey)
+    .sort((a,b)=> (b.date+b.id).localeCompare(a.date+a.id));
+  const total = consumos.reduce((s,t)=>s+t.amount,0);
+  // Pagos vinculados a este resumen (paso 3 setea pagaPeriodo)
+  const pagos = state.txs.filter(t=> t.accountId===acctId && t.type==='income' && t.pagaPeriodo===stmtKey).reduce((s,t)=>s+t.amount,0);
+  const cierre=_cardCierreDate(card,stmtKey), vto=_cardVtoDate(card,stmtKey);
+  // Deuda total de la tarjeta (all-time, incl. cuotas futuras = compromiso total)
+  const allExp=state.txs.filter(t=>t.accountId===acctId && t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const allInc=state.txs.filter(t=>t.accountId===acctId && t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const deuda=allExp-allInc;
+  const MO3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const fmtD=function(ds){ if(!ds) return '—'; var d=new Date(ds+'T00:00:00'); return d.getDate()+' '+MO3[d.getMonth()]; };
+  // Estado del resumen
+  let estLbl,estBg,estCol,estIco;
+  if(total<=0){ estLbl='Sin consumos en este resumen'; estBg='var(--bg3)'; estCol='var(--text3)'; estIco=''; }
+  else if(pagos>=total){ estLbl='Pagado'; estBg='rgba(26,122,74,.12)'; estCol='var(--green)'; estIco='<polyline points="20 6 9 17 4 12"/>'; }
+  else if(pagos>0){ estLbl='Pago parcial · resta '+fmtAmt(total-pagos); estBg='rgba(212,144,10,.14)'; estCol='#b8860b'; estIco='<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'; }
+  else { estLbl=(vto?('Pendiente · vence '+fmtD(vto)):'Pendiente'); estBg='rgba(212,144,10,.14)'; estCol='#b8860b'; estIco='<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'; }
+  const estPill = '<div style="padding:8px 16px 4px"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:4px 11px;border-radius:20px;background:'+estBg+';color:'+estCol+'">'
+    + (estIco?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">'+estIco+'</svg>':'') + estLbl + '</span></div>';
+  const noCycle = !cierre;
+  const list = consumos.length ? consumos.map(t=>txItemHTML(t)).join('')
+    : '<div style="padding:36px 16px;text-align:center;color:var(--text3);font-size:13px">Sin consumos en este resumen</div>';
+  const payBtn = (total>0 && pagos<total)
+    ? '<div style="padding:12px 16px;border-top:0.5px solid var(--border)"><div onclick="openPayStatement(\''+acctId+'\',\''+stmtKey+'\')" style="background:var(--accent);color:#fff;text-align:center;padding:13px;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer">Pagar resumen</div></div>'
+    : '';
+  const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)" style="align-items:flex-start">
+    <div class="modal-sheet" style="height:100vh;display:flex;flex-direction:column;border-radius:0">
+      <div class="modal-handle"></div>
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 16px 6px">
+        <div style="width:36px;height:36px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(card.name)}</div><div style="font-size:11px;color:var(--text3)">${_escHtml(card.bank||card.cardBrand||'Tarjeta')}</div></div>
+        <div style="text-align:right;flex-shrink:0"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">Deuda total</div><div style="font-size:16px;font-family:var(--mono);color:var(--red)">${fmtAmt(deuda)}</div></div>
+        <button onclick="closeModal()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 16px 8px">
+        <button onclick="openCardStatement('${acctId}','${prevKey}')" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">‹</button>
+        <div style="text-align:center"><div style="font-size:15px;font-weight:600;letter-spacing:-0.3px">Resumen de ${MONTHS[sm-1]} ${sy}</div><div style="font-size:11px;color:var(--text3)">${noCycle?'definí día de cierre en la tarjeta':('cierra '+fmtD(cierre)+' · vence '+fmtD(vto))}</div></div>
+        <button onclick="openCardStatement('${acctId}','${nextKey}')" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:4px 10px">›</button>
+      </div>
+      ${estPill}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;margin:8px 0 0;background:var(--bg3);border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border)"><span style="font-size:13px;font-weight:500">Total del resumen</span><span style="font-size:17px;font-weight:600;font-family:var(--mono);color:var(--red)">−${fmtAmt(total)}</span></div>
+      <div style="flex:1;overflow-y:auto">${list}</div>
+      ${payBtn}
+    </div>
+  </div>`;
+  document.getElementById('modal-root').innerHTML = html;
+}
+
+// Stub — el flujo real de pago se implementa en el paso 3
+function openPayStatement(acctId, stmtKey) {
+  showToast('Pago de resumen: lo armamos en el próximo paso');
 }
 
 function openNatureDetailModal(natureId, y, m) {
