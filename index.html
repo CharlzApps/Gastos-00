@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.51';
+const APP_VERSION = 'v2.52';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4470,39 +4470,72 @@ function openPayStatement(acctId, stmtKey) {
   if(!origins.length){ showToast('No hay cuenta en '+cur+' para pagar'); return; }
   const defId = origins.find(a=>a.id===state.defaultAccountId) ? state.defaultAccountId : origins[0].id;
   const opts = origins.map(a=>`<option value="${a.id}" ${a.id===defId?'selected':''}>${_escHtml(a.name)}${a.bank?(' · '+_escHtml(a.bank)):''}</option>`).join('');
+  const defAcct = origins.find(a=>a.id===defId);
   const MO3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const fmtD=function(ds){ if(!ds) return ''; var d=new Date(ds+'T00:00:00'); return d.getDate()+' '+MO3[d.getMonth()]; };
+  const bankSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="3" y1="21" x2="21" y2="21"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><line x1="4" y1="10" x2="4" y2="21"/><line x1="20" y1="10" x2="20" y2="21"/><line x1="8" y1="14" x2="8" y2="17"/><line x1="12" y1="14" x2="12" y2="17"/><line x1="16" y1="14" x2="16" y2="17"/></svg>';
+  const chipBase='padding:9px 4px;border-radius:10px;font-size:13px;cursor:pointer;font-family:var(--font);flex:1;text-align:center;';
   const html = `<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
    <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div style="display:flex;align-items:center;padding:2px 12px 8px 20px">
+    <div style="display:flex;align-items:center;padding:2px 12px 4px 20px">
       <span style="font-size:15px;font-weight:600;flex:1">Pagar resumen</span>
       <button onclick="closeModal()" title="Cerrar" style="width:40px;height:40px;border:none;background:none;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;border-radius:50%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="19" height="19"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="form-body" style="padding-top:0">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${_escHtml(card.name)} · Resumen de ${MONTHS[sm-1]} ${sy}${vto?(' · vence '+fmtD(vto)):''}</div>
-      <div class="field" style="margin-bottom:12px">
-        <label>Monto a pagar</label>
-        <div style="display:flex;gap:6px;margin:6px 0 8px">
-          <button type="button" onclick="document.getElementById('pay-amt').value='${numFmt(restante)}'" style="padding:5px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--bg3);color:var(--text2);cursor:pointer;font-family:var(--font)">Total ${fmtAmt(restante)}</button>
-        </div>
-        <input type="text" id="pay-amt" inputmode="decimal" value="${numFmt(restante)}" oninput="handleAmountInput(this)"/>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">${_escHtml(card.name)} · Resumen de ${MONTHS[sm-1]} ${sy}${vto?(' · vence '+fmtD(vto)):''}</div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Monto a pagar</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button type="button" id="pay-chip-total" onclick="_paySetTotal('${numFmt(restante)}')" style="${chipBase}background:${appColorVal()}18;color:var(--accent);border:1px solid var(--accent)">Total ${fmtAmt(restante)}</button>
+        <button type="button" id="pay-chip-otro" onclick="_payPickOtro()" style="${chipBase}background:var(--bg3);color:var(--text2);border:0.5px solid var(--border)">Otro</button>
       </div>
+      <input type="text" id="pay-amt" inputmode="decimal" value="${numFmt(restante)}" oninput="handleAmountInput(this)" style="font-size:32px;font-family:var(--mono);font-weight:300;text-align:center;border:none;background:none;width:100%;outline:none;color:var(--text);padding:4px 0 14px;letter-spacing:-0.5px"/>
       <div class="field" style="margin-bottom:12px">
         <label>Desde</label>
-        <select id="pay-from">${opts}</select>
+        <div style="position:relative;margin-top:6px">
+          <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)">
+            <span style="width:30px;height:30px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">${bankSvg}</span>
+            <div style="flex:1;min-width:0"><div id="pay-from-name" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(defAcct?defAcct.name:'')}${defAcct&&defAcct.bank?(' · '+_escHtml(defAcct.bank)):''}</div><div id="pay-from-saldo" style="font-size:11px;color:var(--text3)">saldo ${fmtAmt(_acctSaldoSimple(defId))}</div></div>
+            <span style="color:var(--text3);font-size:13px">▾</span>
+          </div>
+          <select id="pay-from" onchange="_payFromChanged()" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;border:none">${opts}</select>
+        </div>
       </div>
-      <div class="field" style="margin-bottom:14px">
+      <div class="field" style="margin-bottom:16px">
         <label>Fecha del pago</label>
         <input type="date" id="pay-date" value="${todayStr()}"/>
       </div>
-      <div onclick="confirmPayStatement('${acctId}','${stmtKey}')" style="background:var(--accent);color:#fff;text-align:center;padding:13px;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer">Pagar</div>
+      <div onclick="confirmPayStatement('${acctId}','${stmtKey}')" style="background:var(--accent);color:#fff;text-align:center;padding:14px;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer">Pagar</div>
       <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:10px;line-height:1.5">Crea una transferencia a la tarjeta (no es gasto), baja la deuda y marca el resumen como pagado.</div>
     </div>
    </div>
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
   const di=document.getElementById('pay-date'); if(di) di.value=todayStr();
+}
+
+// Chip "Total": setea el monto restante y resalta el chip
+function _paySetTotal(val){
+  var inp=document.getElementById('pay-amt'); if(inp){ inp.value=val; inp.blur(); }
+  _payChipState(true);
+}
+// Chip "Otro": deja editar el monto
+function _payPickOtro(){
+  var inp=document.getElementById('pay-amt'); if(inp){ inp.focus(); inp.select && inp.select(); }
+  _payChipState(false);
+}
+function _payChipState(totalActive){
+  var ct=document.getElementById('pay-chip-total'), co=document.getElementById('pay-chip-otro');
+  var acc=appColorVal();
+  if(ct){ ct.style.background=totalActive?acc+'18':'var(--bg3)'; ct.style.color=totalActive?'var(--accent)':'var(--text2)'; ct.style.border=totalActive?'1px solid var(--accent)':'0.5px solid var(--border)'; }
+  if(co){ co.style.background=!totalActive?acc+'18':'var(--bg3)'; co.style.color=!totalActive?'var(--accent)':'var(--text2)'; co.style.border=!totalActive?'1px solid var(--accent)':'0.5px solid var(--border)'; }
+}
+// Actualiza la fila "Desde" al cambiar el select
+function _payFromChanged(){
+  var sel=document.getElementById('pay-from'); if(!sel) return;
+  var a=state.accounts.find(x=>x.id===sel.value); if(!a) return;
+  var nm=document.getElementById('pay-from-name'); if(nm) nm.textContent=a.name+(a.bank?(' · '+a.bank):'');
+  var sd=document.getElementById('pay-from-saldo'); if(sd) sd.textContent='saldo '+fmtAmt(_acctSaldoSimple(a.id));
 }
 
 function confirmPayStatement(acctId, stmtKey) {
@@ -6334,6 +6367,17 @@ function _cardDueMonth(card, dateStr){
   var k = _cardStatementKey(card, dateStr);
   var v = _cardVtoDate(card, k);
   return v ? v.slice(0,7) : k;
+}
+// Saldo de una cuenta puntual (no-crédito: hasta hoy; crédito: all-time). Para selectores.
+function _acctSaldoSimple(id){
+  var a = state.accounts.find(x=>x.id===id); if(!a) return 0;
+  var tdy = todayStr(); var isCre = a.type==='credit'; var inc=0, exp=0;
+  state.txs.forEach(function(t){
+    if(t.accountId!==id) return;
+    if(!isCre && t.date>tdy) return;
+    if(t.type==='income') inc+=t.amount; else if(t.type==='expense') exp+=t.amount;
+  });
+  return inc-exp;
 }
 
 // Saldo real de la cuenta/grupo en curso (acumulado hasta hoy; crédito = deuda all-time incl. cuotas).
