@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.54';
+const APP_VERSION = 'v2.55';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4467,15 +4467,17 @@ function openPayStatement(acctId, stmtKey) {
   const vto=_cardVtoDate(card,stmtKey);
   const cur=card.currency||'ARS';
   const sym=_curSym(cur);
-  const origins=state.accounts.filter(a=> a.id!=='__unassigned__' && a.type!=='credit');
-  if(!origins.length){ showToast('No hay cuentas para pagar'); return; }
-  // Default: cuenta de la MISMA moneda y mismo banco; sino misma moneda; sino default; sino 1ª.
-  const _sc=origins.filter(a=>(a.currency||'ARS')===cur);
-  const pick = _sc.find(a=>a.bank && a.bank===card.bank) || _sc.find(a=>a.id===state.defaultAccountId) || _sc[0]
-            || origins.find(a=>a.bank && a.bank===card.bank) || origins.find(a=>a.id===state.defaultAccountId) || origins[0];
+  const allOrigins=state.accounts.filter(a=> a.id!=='__unassigned__' && a.type!=='credit');
+  if(!allOrigins.length){ showToast('No hay cuentas para pagar'); return; }
+  // Elegibles: cuentas de la MISMA moneda de la tarjeta + (para pagar en otra moneda) SOLO
+  // la cuenta del MISMO banco en esa otra moneda (ej. pagar resumen u$s con la cuenta $ del banco).
+  const sameCur=allOrigins.filter(a=>(a.currency||'ARS')===cur);
+  const crossSameBank=allOrigins.filter(a=>(a.currency||'ARS')!==cur && a.bank && card.bank && a.bank===card.bank);
+  let eligible = sameCur.concat(crossSameBank);
+  if(!eligible.length) eligible = allOrigins; // fallback: nunca dejar sin opción
+  const pick = sameCur.find(a=>a.bank && a.bank===card.bank) || sameCur.find(a=>a.id===state.defaultAccountId) || sameCur[0] || eligible[0];
   const defId = pick.id;
-  const opts = origins.map(a=>`<option value="${a.id}" ${a.id===defId?'selected':''}>${_escHtml(a.name)}${a.bank?(' · '+_escHtml(a.bank)):''} (${_curSym(a.currency||'ARS').trim()})</option>`).join('');
-  const defAcct = origins.find(a=>a.id===defId);
+  const defAcct = eligible.find(a=>a.id===defId) || eligible[0];
   const MO3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const fmtD=function(ds){ if(!ds) return ''; var d=new Date(ds+'T00:00:00'); return d.getDate()+' '+MO3[d.getMonth()]; };
   const bankSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="3" y1="21" x2="21" y2="21"/><path d="M3 10h18"/><path d="M5 6l7-3 7 3"/><line x1="4" y1="10" x2="4" y2="21"/><line x1="20" y1="10" x2="20" y2="21"/><line x1="8" y1="14" x2="8" y2="17"/><line x1="12" y1="14" x2="12" y2="17"/><line x1="16" y1="14" x2="16" y2="17"/></svg>';
@@ -4497,13 +4499,10 @@ function openPayStatement(acctId, stmtKey) {
       <input type="text" id="pay-amt" inputmode="decimal" value="${numFmt(restante)}" oninput="handleAmountInput(this);_payRecalc()" style="font-size:32px;font-family:var(--mono);font-weight:300;text-align:center;border:none;background:none;width:100%;outline:none;color:var(--text);padding:4px 0 14px;letter-spacing:-0.5px"/>
       <div class="field" style="margin-bottom:12px">
         <label>Desde</label>
-        <div style="position:relative;margin-top:6px">
-          <div style="display:flex;align-items:center;gap:10px;padding:11px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3)">
-            <span style="width:30px;height:30px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">${bankSvg}</span>
-            <div style="flex:1;min-width:0"><div id="pay-from-name" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(defAcct?defAcct.name:'')}${defAcct&&defAcct.bank?(' · '+_escHtml(defAcct.bank)):''}</div><div id="pay-from-saldo" style="font-size:11px;color:var(--text3)">saldo ${fmtAmt(_acctSaldoSimple(defId))}</div></div>
-            <span style="color:var(--text3);font-size:13px">▾</span>
-          </div>
-          <select id="pay-from" onchange="_payFromChanged()" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;border:none">${opts}</select>
+        <div onclick="_payPickFrom()" style="display:flex;align-items:center;gap:10px;margin-top:6px;padding:11px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg3);cursor:pointer">
+          <span style="width:30px;height:30px;border-radius:50%;background:${appColorVal()}18;color:${appColorVal()};display:flex;align-items:center;justify-content:center;flex-shrink:0">${bankSvg}</span>
+          <div style="flex:1;min-width:0"><div id="pay-from-name" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_escHtml(defAcct?defAcct.name:'')}${defAcct&&defAcct.bank?(' · '+_escHtml(defAcct.bank)):''}</div><div id="pay-from-saldo" style="font-size:11px;color:var(--text3)">saldo ${_curSym(defAcct?(defAcct.currency||'ARS'):cur)}${numFmt(_acctSaldoSimple(defId))}</div></div>
+          <span style="color:var(--text3);font-size:13px">▾</span>
         </div>
       </div>
       <div class="field" id="pay-tc-row" style="margin-bottom:6px;display:none">
@@ -4522,7 +4521,7 @@ function openPayStatement(acctId, stmtKey) {
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
   const di=document.getElementById('pay-date'); if(di) di.value=todayStr();
-  window._payCtx = { acctId, stmtKey, cardCur: cur };
+  window._payCtx = { acctId, stmtKey, cardCur: cur, fromId: defId, eligibleIds: eligible.map(a=>a.id) };
   _payRecalc();
 }
 
@@ -4542,14 +4541,6 @@ function _payChipState(totalActive){
   if(ct){ ct.style.background=totalActive?acc+'18':'var(--bg3)'; ct.style.color=totalActive?'var(--accent)':'var(--text2)'; ct.style.border=totalActive?'1px solid var(--accent)':'0.5px solid var(--border)'; }
   if(co){ co.style.background=!totalActive?acc+'18':'var(--bg3)'; co.style.color=!totalActive?'var(--accent)':'var(--text2)'; co.style.border=!totalActive?'1px solid var(--accent)':'0.5px solid var(--border)'; }
 }
-// Actualiza la fila "Desde" al cambiar el select
-function _payFromChanged(){
-  var sel=document.getElementById('pay-from'); if(!sel) return;
-  var a=state.accounts.find(x=>x.id===sel.value); if(!a) return;
-  var nm=document.getElementById('pay-from-name'); if(nm) nm.textContent=a.name+(a.bank?(' · '+a.bank):'');
-  var sd=document.getElementById('pay-from-saldo'); if(sd) sd.textContent='saldo '+_curSym(a.currency||'ARS')+numFmt(_acctSaldoSimple(a.id));
-  _payRecalc();
-}
 function _curSym(c){ return c==='ARS'?'$':(c==='USD'?'U$S':(c+' ')); }
 // Monto que sale de la cuenta origen al convertir (TC = pesos por unidad de moneda extranjera).
 function _payOriginAmount(amt, tc, cardCur, fromCur){
@@ -4559,10 +4550,44 @@ function _payOriginAmount(amt, tc, cardCur, fromCur){
   return Math.round(amt*tc);
 }
 // Muestra/oculta el campo TC y la línea de conversión según las monedas; recalcula el subtotal.
+// Picker propio (bottom-sheet con estilo de la app) para la cuenta de origen del pago.
+function _payPickFrom(){
+  var ctx=window._payCtx; if(!ctx||!ctx.eligibleIds) return;
+  var rows=ctx.eligibleIds.map(function(id){
+    var a=state.accounts.find(function(x){return x.id===id;}); if(!a) return '';
+    var sel=id===ctx.fromId;
+    var cross=(a.currency||'ARS')!==ctx.cardCur;
+    return '<div onclick="_paySelectFrom(\''+id+'\')" style="display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;border-bottom:0.5px solid var(--border);'+(sel?'background:'+appColorVal()+'12;':'')+'">'
+      + _acctLogoDot(a,34)
+      + '<div style="flex:1;min-width:0"><div style="font-size:14px">'+_escHtml(a.name)+'</div>'
+      + '<div style="font-size:11px;color:var(--text3)">'+(a.bank?_escHtml(a.bank)+' · ':'')+_curSym(a.currency||'ARS')+numFmt(_acctSaldoSimple(a.id))+(cross?' · pago con conversión':'')+'</div></div>'
+      + (sel?'<span style="color:var(--accent);font-size:15px">✓</span>':'')
+      + '</div>';
+  }).join('');
+  var ov=document.createElement('div');
+  ov.id='pay-pick-overlay'; ov.className='form-picker-overlay'; ov.style.background='rgba(0,0,0,0.35)';
+  ov.onclick=function(e){ if(e.target===ov) _payClosePick(); };
+  ov.innerHTML='<div class="form-picker-sheet">'
+    +'<div style="display:flex;align-items:center;padding:14px 16px 10px;border-bottom:0.5px solid var(--border)"><span style="font-size:15px;font-weight:600;flex:1">Pagar desde</span><span onclick="_payClosePick()" style="cursor:pointer;color:var(--text3);font-size:18px">✕</span></div>'
+    +'<div style="overflow-y:auto">'+rows+'</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+}
+function _payClosePick(){ var o=document.getElementById('pay-pick-overlay'); if(o) o.remove(); }
+function _paySelectFrom(id){
+  var ctx=window._payCtx; if(!ctx) return;
+  ctx.fromId=id;
+  var a=state.accounts.find(function(x){return x.id===id;});
+  if(a){
+    var nm=document.getElementById('pay-from-name'); if(nm) nm.textContent=a.name+(a.bank?(' · '+a.bank):'');
+    var sd=document.getElementById('pay-from-saldo'); if(sd) sd.textContent='saldo '+_curSym(a.currency||'ARS')+numFmt(_acctSaldoSimple(a.id));
+  }
+  _payClosePick();
+  _payRecalc();
+}
 function _payRecalc(){
   var ctx=window._payCtx; if(!ctx) return;
-  var sel=document.getElementById('pay-from');
-  var from=sel && state.accounts.find(function(a){return a.id===sel.value;});
+  var from=ctx.fromId ? state.accounts.find(function(a){return a.id===ctx.fromId;}) : null;
   var fromCur=from?(from.currency||'ARS'):ctx.cardCur;
   var diff = fromCur!==ctx.cardCur;
   var tcRow=document.getElementById('pay-tc-row');
@@ -4584,7 +4609,7 @@ function _payRecalc(){
 function confirmPayStatement(acctId, stmtKey) {
   const card=state.accounts.find(a=>a.id===acctId && a.type==='credit');
   if(!card) return;
-  const fromId=document.getElementById('pay-from')?.value;
+  const fromId=(window._payCtx && window._payCtx.fromId) || null;
   const from=state.accounts.find(a=>a.id===fromId);
   const amt=parseAmountStr(document.getElementById('pay-amt')?.value||'');
   const date=document.getElementById('pay-date')?.value||todayStr();
