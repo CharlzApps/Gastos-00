@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.55';
+const APP_VERSION = 'v2.56';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4052,7 +4052,21 @@ function renderConfig() {
     if(!pending.length) {
       cpl.innerHTML = `<div style="padding:12px 2px;font-size:13px;color:var(--text3)">No hay cuotas pendientes 🎉</div>`;
     } else {
+      // Proyección: cuánto se paga en cuotas por mes (mes actual y adelante)
+      var _nY=new Date().getFullYear(), _nM=new Date().getMonth();
+      var _projMap={};
+      Object.values(groups).forEach(function(txs){ txs.forEach(function(t){ var d=new Date(t.date+'T00:00:00'); if(d.getFullYear()<_nY||(d.getFullYear()===_nY&&d.getMonth()<_nM)) return; var k=t.date.slice(0,7); _projMap[k]=(_projMap[k]||0)+t.amount; }); });
+      var _projKeys=Object.keys(_projMap).sort().slice(0,6);
+      var _MO3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      var _projMax=Math.max.apply(null,[1].concat(_projKeys.map(function(k){return _projMap[k];})));
+      var _projBars = _projKeys.length>1 ? ('<div style="background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px">'
+        +'<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Qué vas a pagar por mes</div>'
+        + _projKeys.map(function(k){ var mm=+k.slice(5,7), yy=k.slice(2,4); var w=Math.max(4,Math.round(_projMap[k]/_projMax*100));
+            return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:48px;font-size:12px;color:var(--text2)">'+_MO3[mm-1]+' '+yy+'</span><div style="flex:1;height:16px;background:var(--bg3);border-radius:4px;overflow:hidden"><div style="height:100%;width:'+w+'%;background:'+appColorVal()+'66"></div></div><span style="font-family:var(--mono);font-size:12px;width:84px;text-align:right">'+fmtAmt(_projMap[k])+'</span></div>';
+          }).join('')
+        +'</div>') : '';
       cpl.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">`
+        + _projBars
         + pending.map(p=>{
           const nextDate = new Date(p.next.date+'T00:00:00');
           const cat = p.cat;
@@ -4164,6 +4178,21 @@ function openCategoriesModal(y, m) {
   const gTot = gastos.reduce((s,c)=>s+c.total,0);
   const iTot = ingresos.reduce((s,c)=>s+c.total,0);
   const cats = gastos.concat(ingresos);
+  // Modo C: "Consumido" (gTot, por fecha de compra) vs "Sale este mes" (gastos no-tarjeta de este
+  // mes + consumos de tarjeta que VENCEN este mes). Solo se muestra si difieren (hay tarjetas con ciclo).
+  let _saleMes = 0;
+  state.txs.forEach(function(t){
+    if(t.type!=='expense' || t.transferGroup || t.fxLink) return;
+    if(!_catsScopeMatch(t.accountId)) return;
+    var acc = state.accounts.find(function(a){return a.id===t.accountId;});
+    if(acc && acc.type==='credit'){ if(_cardDueMonth(acc, t.date)===key) _saleMes += t.amount; }
+    else { if(t.date && t.date.slice(0,7)===key) _saleMes += t.amount; }
+  });
+  const _modoCDiff = Math.round(_saleMes) !== Math.round(gTot);
+  const _modoCRow = _modoCDiff ? ('<div style="display:flex;gap:8px;margin-top:10px">'
+    +'<div style="flex:1;background:var(--bg3);border-radius:10px;padding:9px;text-align:center"><div style="font-size:11px;color:var(--text3)">Consumido</div><div style="font-size:15px;font-weight:600;font-family:var(--mono);color:var(--red)">−'+fmtAmt(gTot)+'</div></div>'
+    +'<div style="flex:1;background:'+appColorVal()+'12;border-radius:10px;padding:9px;text-align:center"><div style="font-size:11px;color:var(--accent)">Sale este mes</div><div style="font-size:15px;font-weight:600;font-family:var(--mono);color:var(--accent)">−'+fmtAmt(_saleMes)+'</div></div>'
+    +'</div>') : '';
   // Transferencias del mes en esta cuenta (NO son gasto/ingreso → bloque aparte).
   // Solo en vista de cuenta puntual; en grupo/todas netean a ~0 y solo agregan ruido.
   const _scopeIsSingle = (function(){ var s=window._catsScope; return !!(s && s!=='__all__' && String(s).indexOf('__group_')!==0); })();
@@ -4221,7 +4250,7 @@ function openCategoriesModal(y, m) {
     +'<div style="display:flex;gap:12px;margin-top:6px">'
     +'<div style="flex:1;background:rgba(26,122,74,.09);border-radius:12px;padding:11px"><div style="font-size:12px;color:var(--green)">Ingresos</div><div style="font-size:18px;font-weight:600;font-family:var(--mono);color:var(--green)">+'+fmtAmt(iTot)+'</div></div>'
     +'<div style="flex:1;background:rgba(224,48,48,.08);border-radius:12px;padding:11px"><div style="font-size:12px;color:var(--red)">Gastos</div><div style="font-size:18px;font-weight:600;font-family:var(--mono);color:var(--red)">−'+fmtAmt(gTot)+'</div></div>'
-    +'</div></div>';
+    +'</div>'+_modoCRow+'</div>';
   function _catRows(list, col){
     const max = list.length ? list[0].total : 1;
     return list.map(c=>{
