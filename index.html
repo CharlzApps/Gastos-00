@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.52';
+const APP_VERSION = 'v2.54';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -4466,10 +4466,15 @@ function openPayStatement(acctId, stmtKey) {
   const restante=Math.max(0, total-pagos);
   const vto=_cardVtoDate(card,stmtKey);
   const cur=card.currency||'ARS';
-  const origins=state.accounts.filter(a=> a.id!=='__unassigned__' && a.type!=='credit' && (a.currency||'ARS')===cur);
-  if(!origins.length){ showToast('No hay cuenta en '+cur+' para pagar'); return; }
-  const defId = origins.find(a=>a.id===state.defaultAccountId) ? state.defaultAccountId : origins[0].id;
-  const opts = origins.map(a=>`<option value="${a.id}" ${a.id===defId?'selected':''}>${_escHtml(a.name)}${a.bank?(' · '+_escHtml(a.bank)):''}</option>`).join('');
+  const sym=_curSym(cur);
+  const origins=state.accounts.filter(a=> a.id!=='__unassigned__' && a.type!=='credit');
+  if(!origins.length){ showToast('No hay cuentas para pagar'); return; }
+  // Default: cuenta de la MISMA moneda y mismo banco; sino misma moneda; sino default; sino 1ª.
+  const _sc=origins.filter(a=>(a.currency||'ARS')===cur);
+  const pick = _sc.find(a=>a.bank && a.bank===card.bank) || _sc.find(a=>a.id===state.defaultAccountId) || _sc[0]
+            || origins.find(a=>a.bank && a.bank===card.bank) || origins.find(a=>a.id===state.defaultAccountId) || origins[0];
+  const defId = pick.id;
+  const opts = origins.map(a=>`<option value="${a.id}" ${a.id===defId?'selected':''}>${_escHtml(a.name)}${a.bank?(' · '+_escHtml(a.bank)):''} (${_curSym(a.currency||'ARS').trim()})</option>`).join('');
   const defAcct = origins.find(a=>a.id===defId);
   const MO3=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const fmtD=function(ds){ if(!ds) return ''; var d=new Date(ds+'T00:00:00'); return d.getDate()+' '+MO3[d.getMonth()]; };
@@ -4486,10 +4491,10 @@ function openPayStatement(acctId, stmtKey) {
       <div style="font-size:12px;color:var(--text2);margin-bottom:16px">${_escHtml(card.name)} · Resumen de ${MONTHS[sm-1]} ${sy}${vto?(' · vence '+fmtD(vto)):''}</div>
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Monto a pagar</div>
       <div style="display:flex;gap:6px;margin-bottom:10px">
-        <button type="button" id="pay-chip-total" onclick="_paySetTotal('${numFmt(restante)}')" style="${chipBase}background:${appColorVal()}18;color:var(--accent);border:1px solid var(--accent)">Total ${fmtAmt(restante)}</button>
+        <button type="button" id="pay-chip-total" onclick="_paySetTotal('${numFmt(restante)}')" style="${chipBase}background:${appColorVal()}18;color:var(--accent);border:1px solid var(--accent)">Total ${sym}${numFmt(restante)}</button>
         <button type="button" id="pay-chip-otro" onclick="_payPickOtro()" style="${chipBase}background:var(--bg3);color:var(--text2);border:0.5px solid var(--border)">Otro</button>
       </div>
-      <input type="text" id="pay-amt" inputmode="decimal" value="${numFmt(restante)}" oninput="handleAmountInput(this)" style="font-size:32px;font-family:var(--mono);font-weight:300;text-align:center;border:none;background:none;width:100%;outline:none;color:var(--text);padding:4px 0 14px;letter-spacing:-0.5px"/>
+      <input type="text" id="pay-amt" inputmode="decimal" value="${numFmt(restante)}" oninput="handleAmountInput(this);_payRecalc()" style="font-size:32px;font-family:var(--mono);font-weight:300;text-align:center;border:none;background:none;width:100%;outline:none;color:var(--text);padding:4px 0 14px;letter-spacing:-0.5px"/>
       <div class="field" style="margin-bottom:12px">
         <label>Desde</label>
         <div style="position:relative;margin-top:6px">
@@ -4501,6 +4506,11 @@ function openPayStatement(acctId, stmtKey) {
           <select id="pay-from" onchange="_payFromChanged()" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;border:none">${opts}</select>
         </div>
       </div>
+      <div class="field" id="pay-tc-row" style="margin-bottom:6px;display:none">
+        <label>Tipo de cambio <span style="font-size:11px;color:var(--text3);font-weight:400">(pesos por unidad)</span></label>
+        <input type="text" id="pay-tc" inputmode="decimal" value="${card.ultimoTC?numFmt(card.ultimoTC):''}" placeholder="Ej: 1200" oninput="_payRecalc()"/>
+      </div>
+      <div id="pay-conv" style="display:none;text-align:center;font-size:13px;color:var(--text2);margin:0 0 14px"></div>
       <div class="field" style="margin-bottom:16px">
         <label>Fecha del pago</label>
         <input type="date" id="pay-date" value="${todayStr()}"/>
@@ -4512,6 +4522,8 @@ function openPayStatement(acctId, stmtKey) {
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
   const di=document.getElementById('pay-date'); if(di) di.value=todayStr();
+  window._payCtx = { acctId, stmtKey, cardCur: cur };
+  _payRecalc();
 }
 
 // Chip "Total": setea el monto restante y resalta el chip
@@ -4535,7 +4547,38 @@ function _payFromChanged(){
   var sel=document.getElementById('pay-from'); if(!sel) return;
   var a=state.accounts.find(x=>x.id===sel.value); if(!a) return;
   var nm=document.getElementById('pay-from-name'); if(nm) nm.textContent=a.name+(a.bank?(' · '+a.bank):'');
-  var sd=document.getElementById('pay-from-saldo'); if(sd) sd.textContent='saldo '+fmtAmt(_acctSaldoSimple(a.id));
+  var sd=document.getElementById('pay-from-saldo'); if(sd) sd.textContent='saldo '+_curSym(a.currency||'ARS')+numFmt(_acctSaldoSimple(a.id));
+  _payRecalc();
+}
+function _curSym(c){ return c==='ARS'?'$':(c==='USD'?'U$S':(c+' ')); }
+// Monto que sale de la cuenta origen al convertir (TC = pesos por unidad de moneda extranjera).
+function _payOriginAmount(amt, tc, cardCur, fromCur){
+  if(!(tc>0)) return 0;
+  if(fromCur==='ARS' && cardCur!=='ARS') return Math.round(amt*tc); // pago tarjeta u$s con pesos
+  if(fromCur!=='ARS' && cardCur==='ARS') return Math.round(amt/tc); // pago tarjeta $ con dólares (raro)
+  return Math.round(amt*tc);
+}
+// Muestra/oculta el campo TC y la línea de conversión según las monedas; recalcula el subtotal.
+function _payRecalc(){
+  var ctx=window._payCtx; if(!ctx) return;
+  var sel=document.getElementById('pay-from');
+  var from=sel && state.accounts.find(function(a){return a.id===sel.value;});
+  var fromCur=from?(from.currency||'ARS'):ctx.cardCur;
+  var diff = fromCur!==ctx.cardCur;
+  var tcRow=document.getElementById('pay-tc-row');
+  var conv=document.getElementById('pay-conv');
+  if(tcRow) tcRow.style.display = diff?'block':'none';
+  if(conv) conv.style.display = diff?'block':'none';
+  if(diff && conv){
+    var amt=parseAmountStr((document.getElementById('pay-amt')||{}).value||'');
+    var tc=parseAmountStr((document.getElementById('pay-tc')||{}).value||'');
+    if(amt>0 && tc>0){
+      var oa=_payOriginAmount(amt,tc,ctx.cardCur,fromCur);
+      conv.innerHTML='Pagás <span style="font-family:var(--mono);font-weight:500;color:var(--text)">'+_curSym(fromCur)+numFmt(oa)+'</span> <span style="color:var(--text3)">('+_curSym(ctx.cardCur)+numFmt(amt)+' × '+numFmt(tc)+')</span>';
+    } else {
+      conv.innerHTML='<span style="color:var(--text3)">Ingresá el tipo de cambio</span>';
+    }
+  }
 }
 
 function confirmPayStatement(acctId, stmtKey) {
@@ -4547,14 +4590,28 @@ function confirmPayStatement(acctId, stmtKey) {
   const date=document.getElementById('pay-date')?.value||todayStr();
   if(!from){ showToast('Elegí la cuenta de origen'); return; }
   if(!(amt>0)){ showToast('Ingresá un monto válido'); return; }
-  const cur=card.currency||'ARS';
+  const cardCur=card.currency||'ARS';
+  const fromCur=from.currency||'ARS';
   const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   const periodoLbl=MONTHS[(+stmtKey.slice(5,7))-1]+' '+stmtKey.slice(0,4);
-  const gid='tf'+Date.now();
-  state.txs.push({ id:'t'+Date.now()+'a', date, type:'expense', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:fromId, amount:amt, currency:from.currency||cur, obs:'Pago '+card.name+' · resumen '+periodoLbl, eventId:'', transferGroup:gid, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
-  state.txs.push({ id:'t'+Date.now()+'b', date, type:'income', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:acctId, amount:amt, currency:cur, obs:'Pago recibido · '+from.name, eventId:'', transferGroup:gid, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
+  if(fromCur===cardCur){
+    // Misma moneda → transferencia normal 1:1
+    const gid='tf'+Date.now();
+    state.txs.push({ id:'t'+Date.now()+'a', date, type:'expense', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:fromId, amount:amt, currency:fromCur, obs:'Pago '+card.name+' · resumen '+periodoLbl, eventId:'', transferGroup:gid, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
+    state.txs.push({ id:'t'+Date.now()+'b', date, type:'income', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:acctId, amount:amt, currency:cardCur, obs:'Pago recibido · '+from.name, eventId:'', transferGroup:gid, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
+  } else {
+    // Distinta moneda → transferencia con conversión (FX). amt = monto en moneda de la tarjeta.
+    const tc=parseAmountStr(document.getElementById('pay-tc')?.value||'');
+    if(!(tc>0)){ showToast('Ingresá el tipo de cambio'); return; }
+    const oa=_payOriginAmount(amt, tc, cardCur, fromCur);
+    if(!(oa>0)){ showToast('Tipo de cambio inválido'); return; }
+    const link='fx'+Date.now();
+    state.txs.push({ id:'t'+Date.now()+'a', date, type:'expense', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:fromId, amount:oa, currency:fromCur, obs:'Pago '+card.name+' · resumen '+periodoLbl+' (TC '+numFmt(tc)+')', eventId:'', fxLink:link, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
+    state.txs.push({ id:'t'+Date.now()+'b', date, type:'income', nature:'variable', catCode:'OTRO', subcat:'Pago tarjeta', accountId:acctId, amount:amt, currency:cardCur, obs:'Pago recibido · '+from.name+' (conversión)', eventId:'', fxLink:link, pagaTarjeta:acctId, pagaPeriodo:stmtKey, cuotaGroup:null, cuotaNum:null, cuotaTotal:null, updatedAt:Date.now() });
+    card.ultimoTC = tc; // recordar para la próxima
+  }
   saveState(); renderMonths(); updateAccountHeader();
-  showToast('Pago registrado ✓');
+  showToast('Pago registrado');
   openCardStatement(acctId, stmtKey);
 }
 
