@@ -681,13 +681,25 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.56';
+const APP_VERSION = 'v2.57';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
 let state = loadState();
 applyAppColor();
-state.currentAccountId = '__group_ARS__'; // siempre iniciar en grupo ARS
+// Pantalla de inicio configurable (state.settings.startAccount): 'last' = recordar la última cuenta;
+// un id de grupo/cuenta = abrir siempre ahí; sino (default) = grupo ARS.
+(function(){
+  if(!state.settings) state.settings = {};
+  var sa = state.settings.startAccount;
+  if(sa === 'last') {
+    if(!state.currentAccountId) state.currentAccountId = '__group_ARS__';
+  } else if(sa && (String(sa).indexOf('__group_')===0 || state.accounts.find(function(a){return a.id===sa;}))) {
+    state.currentAccountId = sa;
+  } else {
+    state.currentAccountId = '__group_ARS__';
+  }
+})();
 
 function defaultState() {
   return {
@@ -2216,13 +2228,11 @@ function renderModal(isEdit) {
         <label>Monto</label>
         <div style="display:flex;gap:8px;align-items:stretch">
           <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 12px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text2);white-space:nowrap;letter-spacing:0.04em;min-width:44px;flex-shrink:0">${currencySymbol}</div>
-          <input type="text" id="f-amount"
+          <input type="text" id="f-amount" readonly
             value="${amtVal ? numFmt(parseAmountStr(amtVal)) : ''}"
             placeholder="0"
-            inputmode="decimal"
-            style="flex:1;font-size:22px;font-family:var(--mono);font-weight:300;letter-spacing:-0.5px;text-align:right"
-            oninput="handleAmountInput(this)"
-            onblur="formatAmountField(this)"/>
+            onclick="openAmountCalc()"
+            style="flex:1;font-size:22px;font-family:var(--mono);font-weight:300;letter-spacing:-0.5px;text-align:right;cursor:pointer;background:none"/>
         </div>
       </div>
 
@@ -2662,6 +2672,93 @@ function parseAmountStr(str) {
 }
 function updateAmountDisplay(v) { formState.amount=v; }
 
+// ── Calculadora de montos (modal propio: operaciones, 000, separador de miles AR) v2.57 ──
+function _openCalc(initial, curSym, onConfirm){
+  window._calc = { expr: (initial && initial>0) ? String(initial) : '', onConfirm: onConfirm };
+  var recents=[], seen={};
+  for(var i=state.txs.length-1; i>=0 && recents.length<3; i--){ var a=state.txs[i].amount; if(a>0 && !seen[a]){ seen[a]=1; recents.push(a); } }
+  var kb='font-size:21px;font-family:var(--font);border:none;border-radius:12px;background:var(--bg3);color:var(--text);cursor:pointer;padding:16px 0;display:flex;align-items:center;justify-content:center;';
+  var kop=kb+'color:var(--accent);font-weight:500;';
+  var disp='<div style="padding:16px 18px 6px;display:flex;align-items:flex-end;gap:10px">'
+    +'<span style="font-size:12px;font-weight:600;font-family:var(--mono);color:var(--text2);background:var(--bg3);border-radius:8px;padding:5px 9px">'+(curSym||'$')+'</span>'
+    +'<div style="flex:1;text-align:right;overflow:hidden"><div id="calc-display" style="font-size:30px;font-family:var(--mono);font-weight:300;letter-spacing:-0.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">0</div><div id="calc-result" style="display:none;font-size:13px;color:var(--text3);font-family:var(--mono)"></div></div>'
+    +'</div>';
+  var chips = recents.length ? ('<div style="display:flex;gap:8px;padding:2px 14px 8px;overflow-x:auto">'
+    + recents.map(function(a){ return '<button onclick="_calcSet(\''+a+'\')" style="flex-shrink:0;background:var(--bg3);border:none;border-radius:20px;padding:7px 14px;font-size:13px;font-family:var(--mono);color:var(--text2);cursor:pointer">'+numFmt(a)+'</button>'; }).join('')
+    +'</div>') : '';
+  var grid='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:6px 14px 16px">'
+    +'<button style="'+kop+'" onclick="_calcClear()">C</button><button style="'+kop+'" onclick="_calcOp(\'/\')">÷</button><button style="'+kop+'" onclick="_calcOp(\'*\')">×</button><button style="'+kop+'" onclick="_calcBack()">⌫</button>'
+    +'<button style="'+kb+'" onclick="_calcKey(\'7\')">7</button><button style="'+kb+'" onclick="_calcKey(\'8\')">8</button><button style="'+kb+'" onclick="_calcKey(\'9\')">9</button><button style="'+kop+'" onclick="_calcOp(\'-\')">−</button>'
+    +'<button style="'+kb+'" onclick="_calcKey(\'4\')">4</button><button style="'+kb+'" onclick="_calcKey(\'5\')">5</button><button style="'+kb+'" onclick="_calcKey(\'6\')">6</button><button style="'+kop+'" onclick="_calcOp(\'+\')">+</button>'
+    +'<button style="'+kb+'" onclick="_calcKey(\'1\')">1</button><button style="'+kb+'" onclick="_calcKey(\'2\')">2</button><button style="'+kb+'" onclick="_calcKey(\'3\')">3</button>'
+    +'<button style="'+kb+'background:var(--accent);color:#fff;grid-row:span 2;font-size:26px;font-weight:600" onclick="_calcConfirm()">✓</button>'
+    +'<button style="'+kb+'" onclick="_calcKey(\'0\')">0</button><button style="'+kb+'" onclick="_calc000()">000</button><button style="'+kb+'" onclick="_calcDot()">,</button>'
+    +'</div>';
+  var ov=document.createElement('div');
+  ov.id='calc-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:400;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,0.4)';
+  ov.onclick=function(e){ if(e.target===ov) _calcClose(); };
+  ov.innerHTML='<div style="background:var(--bg2);border-radius:20px 20px 0 0;overflow:hidden">'
+    +'<div style="display:flex;align-items:center;padding:10px 14px 0"><span style="flex:1;font-size:13px;color:var(--text3)">Monto</span><span onclick="_calcClose()" style="cursor:pointer;color:var(--text3);font-size:18px;padding:4px">✕</span></div>'
+    + disp + chips + grid + '</div>';
+  document.body.appendChild(ov);
+  _calcRender();
+}
+function _calcClose(){ var o=document.getElementById('calc-overlay'); if(o) o.remove(); }
+function _calcSet(v){ window._calc.expr=String(v); _calcRender(); }
+function _calcKey(d){ window._calc.expr += d; _calcRender(); }
+function _calc000(){ window._calc.expr += '000'; _calcRender(); }
+function _calcDot(){
+  var e=window._calc.expr; var lastNum=e.split(/[+\-*/]/).pop();
+  if(lastNum.indexOf('.')>=0) return;
+  if(lastNum==='') window._calc.expr += '0';
+  window._calc.expr += '.'; _calcRender();
+}
+function _calcOp(op){
+  var e=window._calc.expr;
+  if(!e) return;
+  if(/[+\-*/]$/.test(e)) e=e.slice(0,-1);
+  window._calc.expr=e+op; _calcRender();
+}
+function _calcClear(){ window._calc.expr=''; _calcRender(); }
+function _calcBack(){ window._calc.expr=window._calc.expr.slice(0,-1); _calcRender(); }
+function _calcEval(expr){
+  if(!expr) return 0;
+  var s=String(expr).replace(/[^0-9.+\-*/]/g,'').replace(/[+\-*/]+$/,'');
+  if(!s) return 0;
+  try { var r=Function('"use strict";return ('+s+')')(); return (typeof r==='number' && isFinite(r)) ? Math.round(r*100)/100 : 0; }
+  catch(e){ return 0; }
+}
+function _calcFmtDisplay(expr){
+  if(!expr) return '0';
+  var out=expr.replace(/\d+(\.\d*)?/g, function(num){
+    var p=num.split('.'); var ip=p[0]; var g='';
+    for(var i=0;i<ip.length;i++){ if(i>0 && (ip.length-i)%3===0) g+='.'; g+=ip[i]; }
+    return p.length>1 ? g+','+(p[1]||'') : g;
+  });
+  return out.replace(/\*/g,' × ').replace(/\//g,' ÷ ').replace(/\+/g,' + ').replace(/-/g,' − ');
+}
+function _calcRender(){
+  var d=document.getElementById('calc-display'); if(d) d.textContent=_calcFmtDisplay(window._calc.expr);
+  var r=document.getElementById('calc-result'); if(!r) return;
+  if(/\d[+\-*/]\d/.test(window._calc.expr)){ r.textContent='= '+numFmt(_calcEval(window._calc.expr)); r.style.display='block'; }
+  else { r.style.display='none'; }
+}
+function _calcConfirm(){
+  var r=_calcEval(window._calc.expr); var cb=window._calc.onConfirm;
+  _calcClose(); if(cb) cb(r);
+}
+// Abre la calculadora para el campo Monto del modal manual
+function openAmountCalc(){
+  var el=document.getElementById('f-amount'); if(!el) return;
+  var cur=(typeof formState!=='undefined' && formState.currency) || 'ARS';
+  var init=parseAmountStr(el.value||'')||0;
+  _openCalc(init, _curSym(cur), function(res){
+    if(typeof formState!=='undefined') formState.amount=res;
+    el.value = res ? numFmt(res) : '';
+  });
+}
+
 function closeModal() { document.getElementById('modal-root').innerHTML=''; }
 function closeModalOutside(e) { if(e.target.id==='modal-overlay') closeModal(); }
 
@@ -2749,7 +2846,7 @@ function saveTx() {
   const rawAmt = document.getElementById('f-amount')?.value || String(formState.amount||'');
   const amount = parseAmountStr(rawAmt);
   if(!amount || amount<=0) { showToast('Ingresá un monto válido'); return; }
-  const obs = document.getElementById('f-obs')?.value||'';
+  let obs = document.getElementById('f-obs')?.value||'';
   // Normalize date: f-date.value may be empty string on some browsers even after change
   const rawDate = document.getElementById('f-date')?.value;
   const date = (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) ? rawDate : formState.date;
@@ -2757,6 +2854,8 @@ function saveTx() {
   const catCode = document.getElementById('f-cat')?.value||formState.catCode;
   const eventId = document.getElementById('f-event')?.value||'';
   const cuotasNum = parseInt(document.getElementById('f-cuotas')?.value||1);
+  // Observación bypaseable: si se deja vacía, autocompleta con la subcategoría (o el código de categoría).
+  if(!obs.trim()) obs = subcat || catCode || '';
 
   if(editingTxId) {
     const tx = state.txs.find(t=>t.id===editingTxId);
@@ -3764,6 +3863,13 @@ function selectGlobalAccount(id) {
   saveState(); closeModal(); renderMonths();
 }
 
+function setStartAccount(v){
+  if(!state.settings) state.settings = {};
+  state.settings.startAccount = v;
+  saveState();
+  showToast('Pantalla de inicio actualizada');
+}
+
 // ═══════════════════════════════════════════
 // CONFIG ACCORDION
 // ═══════════════════════════════════════════
@@ -3921,6 +4027,10 @@ function renderConfig() {
   if(!state.settings) state.settings = { showDecimals: true };
   // settings
   const sl = document.getElementById('settings-list');
+  const _sa = state.settings.startAccount || '__group_ARS__';
+  let _saOpts = `<option value="last" ${_sa==='last'?'selected':''}>Recordar la última</option>`;
+  getVisibleCurrencies().forEach(function(c){ const g='__group_'+c+'__'; _saOpts += `<option value="${g}" ${_sa===g?'selected':''}>Cuentas en ${c}</option>`; });
+  state.accounts.filter(function(a){return a.id!=='__unassigned__';}).forEach(function(a){ _saOpts += `<option value="${a.id}" ${_sa===a.id?'selected':''}>${_escHtml(a.name)}</option>`; });
   if(sl) sl.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
@@ -3929,6 +4039,11 @@ function renderConfig() {
           <div style="font-size:11px;color:var(--text3);margin-top:2px">Afecta los montos en Inicio</div>
         </div>
         <button class="toggle-switch ${state.settings.showDecimals?'on':''}" id="toggle-decimals" onclick="toggleSetting('showDecimals')"><div class="toggle-knob"></div></button>
+      </div>
+      <div style="padding:12px 14px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
+        <div style="font-size:14px;font-weight:500;margin-bottom:2px">Pantalla de inicio</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Qué cuenta se abre al iniciar la app</div>
+        <select id="start-account-select" onchange="setStartAccount(this.value)" style="width:100%">${_saOpts}</select>
       </div>
     </div>`;
   // categories
