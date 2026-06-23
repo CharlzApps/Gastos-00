@@ -681,7 +681,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 // ═══════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════
-const APP_VERSION = 'v2.58';
+const APP_VERSION = 'v2.59';
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const DAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 
@@ -1794,7 +1794,8 @@ function openWizardModal() {
     subcat: '',
     accountId: getDefaultAccountId(),
     cuotas: 1,
-    acctSubStep: 'type',   // 'type' | 'bank' | 'instrument'
+    obs: '',
+    acctSubStep: 'type',   // 'type' | 'bank' | 'instrument' | 'confirm'
     acctBank: '',          // banco seleccionado en sub-paso
   };
   renderWizard();
@@ -1938,6 +1939,24 @@ function renderWizard() {
     } else if(s.acctSubStep === 'instrkind') {
       titleText = (s.acctKind==='tarjetas'?'Tarjetas':'Cuentas')+' · '+s.acctBank;
       bodyHtml = _bankKindGridHtml(s.acctBank, s.acctKind||'cuentas', function(id){ return "wizardSelectAcct('"+id+"')"; }, s.accountId);
+
+    // ── SUB-PASO: confirmación + observación (opcional, autocompleta con subcat) ──
+    } else if(s.acctSubStep === 'confirm') {
+      titleText = 'Confirmar';
+      const acctC = state.accounts.find(a=>a.id===s.accountId);
+      const curC = acctC?.currency||'ARS';
+      const symC = curC==='USD'?'U$S':curC==='EUR'?'€':curC==='BRL'?'R$':'$';
+      bodyHtml = `
+        <div class="wizard-summary">
+          <div class="wizard-sum-row"><span>${s.type==='income'?'Ingreso':'Gasto'}</span><span class="wizard-sum-val" style="color:${s.type==='income'?'var(--green)':'var(--red)'}">${symC} ${wizardFormatDisplay(s.amount)}</span></div>
+          <div class="wizard-sum-row"><span>Categoría</span><span class="wizard-sum-val">${s.catCode}${s.subcat?' · '+s.subcat:''}</span></div>
+          <div class="wizard-sum-row"><span>Cuenta</span><span class="wizard-sum-val">${_escHtml(acctC?.name||'')}</span></div>
+        </div>
+        <div class="field" style="margin-top:16px">
+          <label>Observación <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+          <input type="text" id="wizard-obs" value="${_escHtml(s.obs||'')}" placeholder="${_escHtml(s.subcat||s.catCode||'')}" oninput="wizardState.obs=this.value" style="width:100%"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Si la dejás vacía, se completa con la subcategoría.</div>
+        </div>`;
     }
   } else if(s.step === 5) {
     titleText = 'Cuotas';
@@ -1959,6 +1978,10 @@ function renderWizard() {
           <div style="font-size:12px;color:var(--text3);margin-top:6px">${s.cuotas===1?'pago único':'cuotas de '+sym+' '+numFmt(perCuota)}</div>
         </div>
         <button onclick="wizardChangeCuotas(1)" style="width:56px;height:56px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);font-size:28px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text)">+</button>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>Observación <span style="font-size:11px;color:var(--text3);font-weight:400">(opcional)</span></label>
+        <input type="text" id="wizard-obs" value="${_escHtml(s.obs||'')}" placeholder="${_escHtml(s.subcat||s.catCode||'')}" oninput="wizardState.obs=this.value" style="width:100%"/>
       </div>`;
   }
 
@@ -1972,7 +1995,7 @@ function renderWizard() {
       </div>
       <div class="wizard-body">${bodyHtml}</div>
       ${s.step===1?`<div style="padding:0 16px"><button class="btn btn-save" style="width:100%" onclick="wizardNext()" ${!s.amount?'disabled':''}>Continuar →</button></div>`:''}
-      ${s.step===5?`<div style="padding:0 16px"><button class="btn btn-save" style="width:100%" onclick="wizardSave()">Guardar ✓</button></div>`:''}
+      ${(s.step===5 || (s.step===4 && s.acctSubStep==='confirm'))?`<div style="padding:0 16px"><button class="btn btn-save" style="width:100%" onclick="wizardSave()">Guardar ✓</button></div>`:''}
     </div>
   </div>`;
   document.getElementById('modal-root').innerHTML = html;
@@ -2014,6 +2037,7 @@ function wizardNext() {
 function wizardBack() {
   const s = wizardState;
   if(s.step === 4) {
+    if(s.acctSubStep === 'confirm')   { s.acctSubStep = 'type'; renderWizard(); return; }
     if(s.acctSubStep === 'instrkind') { s.acctSubStep = 'instrument'; renderWizard(); return; }
     if(s.acctSubStep === 'instrument') { s.acctSubStep = 'bank'; renderWizard(); return; }
     if(s.acctSubStep === 'bank')       { s.acctSubStep = 'type'; renderWizard(); return; }
@@ -2076,7 +2100,8 @@ function wizardSelectAcct(id) {
     wizardState.step = 5;
     renderWizard();
   } else {
-    wizardSave();
+    wizardState.acctSubStep = 'confirm';
+    renderWizard();
   }
 }
 
@@ -2087,6 +2112,9 @@ function wizardChangeCuotas(delta) {
 
 function wizardSave() {
   const s = wizardState;
+  const _obsEl = document.getElementById('wizard-obs');
+  const _typedObs = (_obsEl ? _obsEl.value : (s.obs||'')).trim();
+  const obs = _typedObs || s.subcat || s.catCode || '';
   const amount = parseFloat(s.amount.replace(/\./g,'').replace(',','.')) || 0;
   const acct = state.accounts.find(a=>a.id===s.accountId);
   const cuotas = s.cuotas || 1;
@@ -2106,7 +2134,7 @@ function wizardSave() {
         catCode: s.catCode,
         subcat: s.subcat,
         accountId: s.accountId,
-        obs: s.subcat || s.catCode || '',
+        obs: obs,
         date: dateStr,
         eventId: state.activeEventId || '',
         cuotaGroup: groupId,
@@ -2126,7 +2154,7 @@ function wizardSave() {
       catCode: s.catCode,
       subcat: s.subcat,
       accountId: s.accountId,
-      obs: s.subcat || s.catCode || '',
+      obs: obs,
       date: today,
       eventId: state.activeEventId || '',
       cuotas: false,
